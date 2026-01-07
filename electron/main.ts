@@ -1,31 +1,49 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
+import path from "path";
+import Database from "better-sqlite3";
 
-const createWindow = () => {
-  const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+let db: any;
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1000,
+    height: 800,
     webPreferences: {
-      nodeIntegration: true,
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
+      nodeIntegration: false,
     },
-  });
-  mainWindow.loadURL("http://localhost:3000");
-};
+    icon: path.join(__dirname, "../public/favicon.ico"),
+    autoHideMenuBar: true,
+    minWidth: 400,
+    minHeight: 400,
+    skipTaskbar: true,
 
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
   });
 
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit();
-    }
-  });
+  const isDev = !app.isPackaged;
 
-  console.log(app.getGPUInfo("complete"))
+  if (isDev) {
+    win.loadURL("http://localhost:3000");
+  } else {
+    win.loadFile(path.join(__dirname, "../.output/public/index.html"));
+  }
+
+  initDB();
+}
+
+function initDB() {
+  const dbPath = path.join(app.getPath("userData"), "local.db");
+  db = new Database(dbPath);
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+  );
+}
+
+// Secure Bridge Handler
+ipcMain.handle("db:get-data", (event, key) => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
+  return row ? row.value : null;
 });
+
+app.whenReady().then(createWindow);
