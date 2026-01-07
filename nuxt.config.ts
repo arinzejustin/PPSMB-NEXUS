@@ -3,14 +3,14 @@ import { defineNuxtConfig } from "nuxt/config";
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
-  ssr: false,
+  ssr: process.env.appType === "desktop" ? false : true,
   app: {
     head: {
-      title: "PPSMB File Manager",
+      title: "PPSMB Staff Manager",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
-        { name: "description", content: "PPSMB File Manager" },
+        { name: "description", content: "PPSMB Staff Manager" },
         { name: "format-detection", content: "telephone=no" },
       ],
       link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
@@ -29,5 +29,8 @@ export default defineNuxtConfig({
         injectPosition: "first",
       },
     ],
+  },
+  runtimeConfig: {
+    public: {},
   },
 });

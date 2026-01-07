@@ -1,21 +1,24 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-import path from "path";
+import path from "node:path";
 import Database from "better-sqlite3";
+import { fileURLToPath } from "node:url";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 let db;
 function createWindow() {
     const win = new BrowserWindow({
-        width: 1000,
-        height: 800,
+        width: 1200,
+        height: 700,
         webPreferences: {
-            preload: path.join(__dirname, "preload.ts"),
+            preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
             nodeIntegration: false,
         },
         icon: path.join(__dirname, "../public/favicon.ico"),
         autoHideMenuBar: true,
         minWidth: 400,
-        minHeight: 400,
-        skipTaskbar: true,
+        minHeight: 300,
+        skipTaskbar: false,
     });
     const isDev = !app.isPackaged;
     if (isDev) {

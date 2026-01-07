@@ -1,13 +1,21 @@
-import { app, BrowserWindow, ipcMain } from "electron";
-import path from "path";
+import { app, BrowserWindow, ipcMain, Tray, Menu } from "electron";
+import path from "node:path";
 import Database from "better-sqlite3";
+import { fileURLToPath } from "node:url";
+import { setupAutoUpdater } from "./updater";
 
-let db: any;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let db: Database.Database;
+let win: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isAppQuitting = false;
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1000,
-    height: 800,
+  win = new BrowserWindow({
+    width: 1200,
+    height: 700,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -16,9 +24,8 @@ function createWindow() {
     icon: path.join(__dirname, "../public/favicon.ico"),
     autoHideMenuBar: true,
     minWidth: 400,
-    minHeight: 400,
-    skipTaskbar: true,
-
+    minHeight: 300,
+    show: false,
   });
 
   const isDev = !app.isPackaged;
@@ -29,21 +36,90 @@ function createWindow() {
     win.loadFile(path.join(__dirname, "../.output/public/index.html"));
   }
 
+  win.on("close", (event) => {
+    if (!isAppQuitting) {
+      event.preventDefault();
+      win?.hide();
+      return;
+    }
+  });
+
   initDB();
+  setupTray();
+
+  win.once("ready-to-show", () => {
+    if (!win) return;
+    setupAutoUpdater(win);
+  });
 }
 
 function initDB() {
   const dbPath = path.join(app.getPath("userData"), "local.db");
   db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
   db.exec(
     "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
   );
 }
 
-// Secure Bridge Handler
+function setupTray() {
+  tray = new Tray(path.join(__dirname, "../public/favicon.ico"));
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Open App",
+      click: () => {
+        win?.show();
+      },
+    },
+    {
+      label: "Scan Document",
+      click: () => {
+        win?.webContents.send("scan-document");
+      },
+    },
+    {
+      label: "Quit",
+      click: () => {
+        isAppQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip("Staff Manager");
+  tray.setContextMenu(contextMenu);
+
+  tray.on("click", () => {
+    if (win?.isVisible()) {
+      win.hide();
+    } else {
+      win?.show();
+    }
+  });
+}
+
 ipcMain.handle("db:get-data", (event, key) => {
   const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
   return row ? row.value : null;
 });
 
 app.whenReady().then(createWindow);
+
+app.on("before-quit", () => {
+  isAppQuitting = true;
+  if (db) db.close();
+});
+
+app.on("will-quit", () => {
+  if (db) db.close();
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+  }
+});
+
+app.on("activate", () => {
+  if (win === null) createWindow();
+});
