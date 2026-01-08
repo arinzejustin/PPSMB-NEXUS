@@ -1,13 +1,13 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from "electron";
 import path from "node:path";
-import Database from "better-sqlite3";
+// import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
-import { setupAutoUpdater } from "./updater";
+import { setupAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let db: Database.Database;
+// let db: Database.Database;
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isAppQuitting = false;
@@ -17,7 +17,7 @@ function createWindow() {
     width: 1200,
     height: 700,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -25,7 +25,7 @@ function createWindow() {
     autoHideMenuBar: true,
     minWidth: 400,
     minHeight: 300,
-    show: false,
+    show: true,
   });
 
   const isDev = !app.isPackaged;
@@ -44,7 +44,7 @@ function createWindow() {
     }
   });
 
-  initDB();
+  // initDB();
   setupTray();
 
   win.once("ready-to-show", () => {
@@ -53,17 +53,26 @@ function createWindow() {
   });
 }
 
-function initDB() {
-  const dbPath = path.join(app.getPath("userData"), "local.db");
-  db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.exec(
-    "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
-  );
-}
+// function initDB() {
+//   const dbPath = path.join(app.getPath("userData"), "local.db");
+//   db = new Database(dbPath);
+//   db.pragma("journal_mode = WAL");
+//   db.exec(
+//     "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
+//   );
+// }
 
 function setupTray() {
-  tray = new Tray(path.join(__dirname, "../public/favicon.ico"));
+  const iconPath = path.join(__dirname, "../public/favicon.ico");
+  const image = nativeImage.createFromPath(iconPath);
+
+  if (image.isEmpty()) {
+    console.error("Failed to load tray icon at:", iconPath);
+  } else {
+    console.log(iconPath)
+  }
+
+  tray = new Tray(image);
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -100,19 +109,19 @@ function setupTray() {
 }
 
 ipcMain.handle("db:get-data", (event, key) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
-  return row ? row.value : null;
+  // const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
+  // return row ? row.value : null;
 });
 
 app.whenReady().then(createWindow);
 
 app.on("before-quit", () => {
   isAppQuitting = true;
-  if (db) db.close();
+  // if (db) db.close();
 });
 
 app.on("will-quit", () => {
-  if (db) db.close();
+  // if (db) db.close();
 });
 
 app.on("window-all-closed", () => {
@@ -123,3 +132,5 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   if (win === null) createWindow();
 });
+
+

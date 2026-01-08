@@ -1,6 +1,7 @@
-import { autoUpdater } from "electron-updater";
+import pkg from "electron-updater";
 import { ipcMain } from "electron";
 import log from "electron-log";
+const { autoUpdater } = pkg;
 export function setupAutoUpdater(mainWindow) {
     autoUpdater.logger = log;
     autoUpdater.autoDownload = false;

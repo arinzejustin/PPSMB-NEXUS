@@ -10,13 +10,14 @@
     "postinstall:nuxt": "nuxt prepare",
     "build:electron": "tsc -p electron/tsconfig.electron.json",
     "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",
-    "postinstall:electron": "electron-rebuild",
+    "postinstall:electron": "electron-rebuild -f -w better-sqlite3",
     "dev:electron": "wait-on http://localhost:3000 && nodemon",
     "app:dev": "concurrently -n \"NUXT,TSC,ELECTRON\" -c \"green,blue,yellow\" \"npm run dev:nuxt\" \"npm run watch:electron\" \"npm run dev:electron\"",
     "app:build": "npm run build:nuxt && npm run build:electron && electron-builder",
-    "app:postinstall": "concurrently \"npm run postinstall:nuxt\" \"npm run postinstall:electron\""
+    "app:postinstall": "concurrently -n \"NUXT,ELECTRON\" -c \"green,blue\" \"npm run postinstall:nuxt\" \"npm run postinstall:electron\""
   },
   "dependencies": {
+    "@vueuse/core": "^14.1.0",
     "better-sqlite3": "^12.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -32,6 +33,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.2",
     "@nuxtjs/tailwindcss": "^7.0.0-beta.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.3",

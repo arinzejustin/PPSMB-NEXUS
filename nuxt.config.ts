@@ -22,6 +22,7 @@ export default defineNuxtConfig({
     prefix: "",
     componentDir: "@/components/ui",
   },
+  css: ["@/assets/css/font.css"],
   tailwindcss: {
     cssPath: [
       "@/assets/css/tailwind.css",
@@ -31,6 +32,14 @@ export default defineNuxtConfig({
     ],
   },
   runtimeConfig: {
+    apiType: process.env.appType,
     public: {},
+  },
+  vite: {
+    build: {
+      rollupOptions: {
+        external: ["better-sqlite3"],
+      },
+    },
   },
 });

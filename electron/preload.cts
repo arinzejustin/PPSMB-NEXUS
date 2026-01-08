@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { IElectronAPI } from "../types";
+import type { IElectronAPI } from "./types.js";
 
 const appBridge: IElectronAPI = {
   saveData: (item) => ipcRenderer.invoke("db:save", item),

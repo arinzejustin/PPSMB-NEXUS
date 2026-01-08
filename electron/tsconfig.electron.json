@@ -6,19 +6,19 @@
             "ESNext"
         ],
         "strict": true,
+        "rootDir": ".",
+        "outDir": "../dist-electron",
         "moduleResolution": "node",
-        "baseUrl": ".",
+        "baseUrl": "..",
         "paths": {
             "@/*": [
-                "./app/*",
-                "./electron/*"
+                "./*"
             ]
         },
         "types": [
             "node",
             "electron"
         ],
-        "outDir": "../dist-electron",
         "esModuleInterop": true,
         "skipLibCheck": true
     },
