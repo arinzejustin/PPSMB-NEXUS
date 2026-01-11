@@ -23,6 +23,7 @@
         "skipLibCheck": true
     },
     "include": [
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cts"
     ]
 }

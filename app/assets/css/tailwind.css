@@ -114,16 +114,21 @@
 @layer base {
   * {
     @apply border-border outline-ring/50 transition-all duration-500 ease-in-out;
-    font-family: 'Inter', sans-serif !important;
   }
 
+  html,
   body {
     @apply bg-muted text-foreground;
+    font-family: 'Inter', sans-serif !important;
   }
 }
 
 @layer components {
   .app-btn {
-    @apply bg-primary text-primary-foreground rounded-md px-6 py-2;
+    @apply bg-primary text-primary-foreground rounded-lg px-6 py-2;
   }
+}
+
+.font-inter {
+  font-family: 'Inter', sans-serif !important;
 }

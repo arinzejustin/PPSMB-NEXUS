@@ -1,5 +1,5 @@
 // electron.d.ts
-import { IElectronAPI } from "./electron/preload.cts";
+import { IElectronAPI } from "./electron/types";
 
 declare global {
   interface Window {

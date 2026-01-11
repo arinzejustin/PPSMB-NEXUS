@@ -1,32 +1,41 @@
+// @ts-ignore
 import { contextBridge, ipcRenderer } from "electron";
-import type { IElectronAPI } from "./types.js";
+import type { IElectronAPI, Unsubscribe } from "./types.js";
+
+function on<T>(channel: string, handler: (...args: T[]) => void): Unsubscribe {
+  const listener = (_: unknown, ...args: T[]) => handler(...args);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
 
 const appBridge: IElectronAPI = {
   saveData: (item) => ipcRenderer.invoke("db:save", item),
   getData: (key) => ipcRenderer.invoke("db:get-data", key),
+
   sendNotification: (title, body) =>
     ipcRenderer.send("notification", title, body),
 
-  // Document Scanner
-  onScanDocument: (callback: () => void) => {
-    ipcRenderer.on("scan-document", () => callback());
-  },
-  removeScanDocumentListener: () => {
-    ipcRenderer.removeAllListeners("scan-document");
-  },
+  // Document scanner
+  onScanDocument: (cb) => on("scan-document", cb),
 
   // Updater
   startDownload: () => ipcRenderer.send("start-download"),
   confirmInstall: () => ipcRenderer.send("quit-and-install"),
+  checkUpdate: () => ipcRenderer.send("check-for-updates"),
+  onUpdateAvailable: (cb) => on<string>("update-available", cb),
+  onUpdateProgress: (cb) => on<number>("update-progress", cb),
+  onUpdateDownloaded: (cb) => on("update-downloaded", cb),
 
-  onUpdateAvailable: (callback: (version: string) => void) =>
-    ipcRenderer.on("update-available", (_, version) => callback(version)),
+  getUpdateState: () => ipcRenderer.invoke("get-update-state"),
 
-  onUpdateProgress: (callback: (percent: number) => void) =>
-    ipcRenderer.on("update-progress", (_, percent) => callback(percent)),
+  openModal: (routeUrl, options) =>
+    ipcRenderer.invoke("open-modal", routeUrl, options),
 
-  onUpdateDownloaded: (callback: () => void) =>
-    ipcRenderer.on("update-downloaded", () => callback()),
+  openBrowser: (url) => ipcRenderer.invoke("open-browser", url),
+
+  //context-menu
+  openContextMenu: (cb) =>
+    on<Record<string, boolean | number | string>>("open-context-menu", cb),
 };
 
 contextBridge.exposeInMainWorld("electronAPI", appBridge);

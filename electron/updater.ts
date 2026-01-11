@@ -1,11 +1,19 @@
 import pkg from "electron-updater";
-import { BrowserWindow, ipcMain } from "electron";
-import log from "electron-log";
+import { BrowserWindow, ipcMain, app } from "electron";
+import Store from "electron-store";
+import { NotificationService } from "./notification.js";
 
 const { autoUpdater } = pkg;
 
+const StoreConstructor = (Store as any).default || Store;
+
+const store = new StoreConstructor({
+  defaults: {
+    updateDownloaded: false,
+  },
+});
+
 export function setupAutoUpdater(mainWindow: BrowserWindow) {
-  autoUpdater.logger = log;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
@@ -13,16 +21,22 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
     mainWindow.webContents.send("update-available", info.version);
   });
 
-  autoUpdater.on("download-progress", (progressObj) => {
-    mainWindow.webContents.send("update-progress", progressObj.percent);
+  autoUpdater.on("download-progress", (p) => {
+    mainWindow.webContents.send("update-progress", Math.round(p.percent));
   });
 
-  autoUpdater.on("update-downloaded", () => {
+  autoUpdater.on("update-downloaded", (info) => {
+    store.set("updateDownloaded", true);
+    store.set("updateVersion", info.version);
+
     mainWindow.webContents.send("update-downloaded");
   });
 
-  autoUpdater.on("error", (err) => {
-    mainWindow.webContents.send("update-error", err.message);
+  autoUpdater.on("update-not-available", () => {
+    NotificationService.show(
+      "Up to Date",
+      "You are already running the latest version."
+    );
   });
 
   ipcMain.on("start-download", () => {
@@ -31,6 +45,23 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
 
   ipcMain.on("quit-and-install", () => {
     autoUpdater.quitAndInstall();
+  });
+
+  ipcMain.handle("get-update-state", () => ({
+    downloaded: store.get("updateDownloaded"),
+    version: store.get("updateVersion"),
+  }));
+
+  ipcMain.on("check-for-updates", () => {
+    NotificationService.show(
+      "Up to Date",
+      "You are already running the latest version."
+    );
+    autoUpdater.checkForUpdates();
+  });
+
+  app.on("before-quit", () => {
+    if (!store.get("updateDownloaded")) return;
   });
 
   autoUpdater.checkForUpdates();

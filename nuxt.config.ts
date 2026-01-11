@@ -1,9 +1,11 @@
 import { defineNuxtConfig } from "nuxt/config";
 
+const isDesktop = process.env.NUXT_APP_TYPE === "desktop";
+
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
-  ssr: process.env.appType === "desktop" ? false : true,
+  ssr: !isDesktop,
   app: {
     head: {
       title: "PPSMB Staff Manager",
@@ -22,7 +24,9 @@ export default defineNuxtConfig({
     prefix: "",
     componentDir: "@/components/ui",
   },
-  css: ["@/assets/css/font.css"],
+  css: [
+    isDesktop ? "@/assets/css/font-desktop.css" : "@/assets/css/font-web.css",
+  ],
   tailwindcss: {
     cssPath: [
       "@/assets/css/tailwind.css",
@@ -32,8 +36,9 @@ export default defineNuxtConfig({
     ],
   },
   runtimeConfig: {
-    apiType: process.env.appType,
-    public: {},
+    public: {
+      appType: process.env.NUXT_APP_TYPE,
+    },
   },
   vite: {
     build: {

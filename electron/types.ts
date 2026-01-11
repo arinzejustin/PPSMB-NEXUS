@@ -1,16 +1,43 @@
+import type { BrowserWindowConstructorOptions } from "electron";
+
+export type Unsubscribe = () => void;
+
 export interface IElectronAPI {
-  saveData: (item: {
-    id: string;
-    content: string;
-    synced: number;
-  }) => Promise<boolean>;
-  getData: (key: string) => Promise<string | null>;
+  saveData: (item: unknown) => Promise<void>;
+  getData: (key: string) => Promise<unknown>;
   sendNotification: (title: string, body: string) => void;
-  onScanDocument: (callback: () => void) => void;
-  removeScanDocumentListener: () => void;
+
+  // Document scanner
+  onScanDocument: (cb: () => void) => Unsubscribe;
+
+  // Updater
   startDownload: () => void;
   confirmInstall: () => void;
-  onUpdateAvailable: (callback: (version: string) => void) => void;
-  onUpdateProgress: (callback: (percent: number) => void) => void;
-  onUpdateDownloaded: (callback: () => void) => void;
+  checkUpdate: () => void;
+
+  onUpdateAvailable: (cb: (version: string) => void) => Unsubscribe;
+  onUpdateProgress: (cb: (percent: number) => void) => Unsubscribe;
+  onUpdateDownloaded: (cb: () => void) => Unsubscribe;
+
+  // Persistent update state
+  getUpdateState: () => Promise<{
+    downloaded: boolean;
+    version?: string;
+  }>;
+
+  openModal: (
+    routeUrl: string,
+    options?: BrowserWindowConstructorOptions
+  ) => Promise<void>;
+
+  openBrowser: (url: string) => Promise<void>;
+
+  openContextMenu: (
+    cb: (options: Record<string, boolean | number | string>) => void
+  ) => Unsubscribe;
+}
+
+export interface UpdateSchema {
+  updateDownloaded: boolean;
+  updateVersion?: string;
 }
