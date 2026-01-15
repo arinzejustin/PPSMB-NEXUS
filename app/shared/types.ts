@@ -1,3 +1,11 @@
+export interface Auth {
+  isAuthenticated: boolean;
+  token: string | null;
+  expiresAt: number | null;
+  hasSetPin: boolean;
+  pin: string | null;
+}
+
 export interface UserDetails {
   name: string;
   email: string;
@@ -7,3 +15,4 @@ export interface UserDetails {
   deviceId: string;
   devices: string[];
 }
+

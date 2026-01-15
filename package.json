@@ -5,7 +5,7 @@
   "private": true,
   "version": "0.11.9",
   "description": "Teachers Management System for staff management",
-  "author": "Arinze Justin <arinzejustinng@gmail.com>",
+  "author": "Arinze Justin <codewitharinzejustin@gmail.com>",
   "main": "dist-electron/main.js",
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
@@ -22,6 +22,7 @@
     "app:postinstall": "concurrently -n \"NUXT,ELECTRON\" -c \"green,blue\" \"npm run postinstall:nuxt\" \"npm run postinstall:electron\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
     "@vueuse/core": "^14.1.0",
     "axios": "^1.13.2",
     "better-sqlite3": "^12.5.0",
@@ -37,7 +38,8 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "vue": "^3.5.26",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "vue-sonner": "^2.0.9"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^7.0.0-beta.1",

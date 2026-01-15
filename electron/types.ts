@@ -35,6 +35,9 @@ export interface IElectronAPI {
   openContextMenu: (
     cb: (options: Record<string, boolean | number | string>) => void
   ) => Unsubscribe;
+  exitOrRestart: (action: "exit" | "restart") => Promise<void>;
+  navigateHistory: (action: "back" | "forward") => Promise<void>;
+  syncRecords: () => Promise<void>;
 }
 
 export interface UpdateSchema {

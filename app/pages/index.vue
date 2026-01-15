@@ -4,9 +4,11 @@ import { navigateTo } from 'nuxt/app';
 import { Button } from "@/components/ui/button";
 import { openUrl } from '~/shared/urlHandler';
 
-// navigateTo('/pin');
 
 export default defineComponent({
+    setup() {
+
+    },
     components: {
         Button,
     },
@@ -14,6 +16,7 @@ export default defineComponent({
         openUrl,
     },
     mounted() {
+        // navigateTo('/pin');
     },
 });
 </script>
@@ -22,5 +25,9 @@ export default defineComponent({
     <div>
         Hello Index <Button @click="openUrl('https://axiolot.com.ng', 'Axiolot Hub')" class="font-app">Visit
             PPSMB</Button>
+        <br>
+        <NuxtLink to="/pin">Hello Pin</NuxtLink>
+        <br>
+        <NuxtLink to="/login">Hello Login</NuxtLink>
     </div>
 </template>

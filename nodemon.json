@@ -2,5 +2,5 @@
   "watch": ["dist-electron"],
   "ext": "js",
   "exec": "electron .",
-  "delay": "500" 
+  "delay": "1000" 
 }

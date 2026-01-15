@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { navigateTo, useRuntimeConfig } from 'nuxt/app';
-import { ArrowDownIcon, Code2Icon, PlusIcon, TrashIcon } from 'lucide-vue-next'
+import { ArrowDownIcon, Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner } from 'lucide-vue-next'
 import { Button } from "@/components/ui/button";
 import { Progress } from '@/components/ui/progress';
 import {
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/context-menu';
 import { getStorage, setStorage } from '@/lib/storage';
 import { openBrowser } from '~/shared/urlHandler';
-import type { UserDetails } from '~/types/types'
+import type { UserDetails } from '~/shared/types'
 
 export default defineComponent({
   components: {
@@ -41,7 +41,7 @@ export default defineComponent({
     ContextMenuSubContent,
     ContextMenuSubTrigger,
     ContextMenuTrigger,
-    Code2Icon, PlusIcon, TrashIcon
+    Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner
   },
   data() {
     return {
@@ -52,11 +52,13 @@ export default defineComponent({
       timer: null as ReturnType<typeof setInterval> | null,
       off: [] as (() => void)[],
       menuOptions: {} as Record<string, boolean | number | string>,
+      loading: true,
     };
   },
 
   methods: {
     openBrowser,
+    navigateTo,
     download() {
       window.electronAPI?.startDownload();
     },
@@ -67,6 +69,54 @@ export default defineComponent({
 
     checkUpdate() {
       window.electronAPI?.checkUpdate();
+    },
+
+    exitOrRestart(action: "exit" | "restart") {
+      window.electronAPI?.exitOrRestart(action);
+    },
+
+    navigateHistory(action: "back" | "forward") {
+      window.electronAPI?.navigateHistory(action);
+    },
+
+    syncRecords() {
+      window.electronAPI?.syncRecords()
+    },
+
+    changeRotation() {
+      let style = document.createElement("style");
+      style.id = "dynamic-orbit-style";
+
+      const rotateA = `@keyframes orbit {
+    0% { transform: rotate(360deg); }
+    50% { transform: rotate(180deg); }
+    100% { transform: rotate(0deg); }
+  }`;
+
+      const rotateB = `@keyframes orbit {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+    100% { transform: rotate(360deg); }
+  }`;
+
+      let isRotateA = true;
+
+      const updateKeyframe = () => {
+        const oldStyle = document.getElementById("dynamic-orbit-style");
+        if (oldStyle) {
+          oldStyle.remove();
+        }
+
+        style = document.createElement("style");
+        style.id = "dynamic-orbit-style";
+        style.innerHTML = isRotateA ? rotateA : rotateB;
+        document.head.appendChild(style);
+
+        isRotateA = !isRotateA;
+      };
+
+      updateKeyframe();
+      setInterval(updateKeyframe, 3000);
     },
 
     tick() {
@@ -82,14 +132,53 @@ export default defineComponent({
         e.stopPropagation();
       }
     },
+
+    handleKeydown(e: KeyboardEvent) {
+      if (!e.ctrlKey) return;
+
+      const key = e.key.toLowerCase();
+      const shift = e.shiftKey;
+
+      if (!shift) {
+        if (key === "[") {
+          e.preventDefault();
+          this.navigateHistory("back");
+        } else if (key === "]") {
+          e.preventDefault();
+          this.navigateHistory("forward");
+        } else if (key === "r") {
+          e.preventDefault();
+          this.exitOrRestart("restart");
+        } else if (key === "q") {
+          e.preventDefault();
+          this.exitOrRestart("exit");
+        }
+      } else {
+        if (key === "d") {
+          e.preventDefault();
+          navigateTo("/documents/scan");
+        } else if (key === "r") {
+          e.preventDefault();
+          this.syncRecords()
+        } else if (key === "a") {
+          e.preventDefault();
+          console.warn("Add Record not implemented");
+        } else if (key === "s") {
+          e.preventDefault();
+          console.warn("Search Teacher not implemented");
+        }
+      }
+    },
   },
 
   async mounted() {
     if (!import.meta.client) return;
+    this.changeRotation();
 
     let urlTo = "/login";
 
     if (window.electronAPI) {
+      window.addEventListener("keydown", this.handleKeydown);
       const state = await window.electronAPI.getUpdateState();
 
       if (state.downloaded) {
@@ -113,7 +202,7 @@ export default defineComponent({
           this.countdown = 60;
 
           if (this.timer) clearInterval(this.timer);
-          this.timer = setInterval(this.tick, 1000);
+          this.timer = setInterval(this.tick, 1500);
         }),
 
         window.electronAPI.onScanDocument(() => {
@@ -128,7 +217,6 @@ export default defineComponent({
           if (!trigger) {
             trigger = document.getElementById('menuTrigger');
           }
-          console.log(options)
           if (trigger && typeof x === 'number' && typeof y === 'number') {
             trigger.style.left = `${x}px`;
             trigger.style.top = `${y}px`;
@@ -157,23 +245,44 @@ export default defineComponent({
           setStorage('hasLoggedIn', false);
         }
       };
+      navigateTo(urlTo);
 
-      return navigateTo(urlTo)
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      return this.loading = false;
     }
+    navigateTo(urlTo)
 
-    return navigateTo(urlTo)
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    this.loading = false;
   },
 
   beforeUnmount() {
     this.off.forEach((fn) => fn());
     if (this.timer) clearInterval(this.timer);
+    if (window.electronAPI) {
+      window.removeEventListener("keydown", this.handleKeydown);
+    }
   },
 });
 
 </script>
 <template>
   <div class="bg-muted min-h-screen" @contextmenu="onContextMenu">
-    <NuxtLayout class="flex">
+    <div v-if="loading" class="fixed inset-0 z-10000 flex flex-col items-center justify-center bg-primary">
+      <div class="relative flex items-center justify-center">
+        <svg class="absolute w-44 h-44 animate-orbit" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="44" class="orbit-ring" stroke-width="2" fill="none" stroke-dasharray="30"
+            stroke-dashoffset="105" stroke-linecap="round" />
+        </svg>
+        <div class="z-10 flex h-36 w-36 items-center justify-center rounded-full bg-white">
+          <img src="/logo.png" alt="Logo" class="w-full h-full object-contain" />
+        </div>
+      </div>
+      <div class="absolute bottom-8 text-2xl font-extrabold uppercase text-primary-foreground font-app">
+        PPSMB File Manager
+      </div>
+    </div>
+    <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
 
@@ -217,77 +326,86 @@ export default defineComponent({
       <ContextMenuTrigger as-child>
         <div ref="menuTrigger" class="fixed size-0" id="menuTrigger" />
       </ContextMenuTrigger>
-      <ContextMenuContent class="w-56">
-        <ContextMenuItem inset :disabled="!menuOptions.back">
+      <ContextMenuContent class="w-64 font-app">
+        <ContextMenuItem @click="navigateHistory('back')" inset :disabled="!menuOptions.back">
           Back
-          <ContextMenuShortcut>⌘[</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+[</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem inset :disabled="!menuOptions.forward">
+        <ContextMenuItem @click="navigateHistory('forward')" inset :disabled="!menuOptions.forward">
           Forward
-          <ContextMenuShortcut>⌘]</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+]</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem inset :disabled="!menuOptions.restart">
+        <ContextMenuItem @click="exitOrRestart('restart')" inset :disabled="!menuOptions.restart">
           Restart
-          <ContextMenuShortcut>⌘R</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+R</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSeparator />
 
         <ContextMenuItem inset v-if="menuOptions.cut">
           Cut
-          <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+X</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem inset v-if="menuOptions.copy">
           Copy
-          <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+C</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem inset v-if="menuOptions.paste">
           Paste
-          <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+V</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSeparator v-if="menuOptions.cut || menuOptions.copy || menuOptions.paste" />
         <ContextMenuItem inset v-if="menuOptions.linkUrl">Copy Full URLs</ContextMenuItem>
         <ContextMenuSeparator v-if="menuOptions.linkUrl || menuOptions.openLink" />
+        <ContextMenuItem class="my-1" @click="navigateTo('/documents/scan')">
+          <FileScan class="size-4 mr-2" />
+          Scan Document
+          <ContextMenuShortcut class="text-[11px]">Ctrl+⇧+D</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem class="my-1" @click="syncRecords()">
+          <CloudSync class="size-4 mr-2" />
+          <span class="truncate">Synchronize Records</span>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+⇧+R</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem class="my-1">
+          <FilePlusCorner class="size-4 mr-2" />
+          Add Record
+          <ContextMenuShortcut class="text-[11px]">Ctrl+⇧+A</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem class="my-1">
+          <UserSearch class="size-4 mr-2" />
+          Search Teacher
+          <ContextMenuShortcut class="text-[11px]">Ctrl+⇧+S</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuSub>
           <ContextMenuSubTrigger inset>
-            More Tools
+            About
           </ContextMenuSubTrigger>
           <ContextMenuSubContent class="w-52">
-            <ContextMenuItem inset>
-              Scan Document
-              <ContextMenuShortcut>⇧⌘S</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem>
-              <PlusIcon class="size-5 mr-1" />
-              Create Shortcut...
-            </ContextMenuItem>
-            <ContextMenuItem inset>
-              Name Window...
+            <ContextMenuItem inset disabled>
+              Version: {{ menuOptions.__version ?? "0.0.1" }}
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuSub>
-              <ContextMenuSubTrigger inset>
-                About
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent class="w-52">
-                <ContextMenuItem inset>
-                  Version: {{ menuOptions.__version ?? "0.0.1" }}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem @click="checkUpdate()" inset v-if="menuOptions.check">
-                  Check For Update
-                </ContextMenuItem>
-                <ContextMenuItem @click="openBrowser(String(menuOptions.release))" inset v-if="menuOptions.release">
-                  Release Note
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+            <ContextMenuItem @click="checkUpdate()" inset v-if="menuOptions.check">
+              Check For Update
+            </ContextMenuItem>
+            <ContextMenuItem @click="openBrowser(String(menuOptions.release))" inset v-if="menuOptions.release">
+              Release Note
+            </ContextMenuItem>
+            <ContextMenuItem @click="openBrowser('https://axiolot.com.ng')">
+              <Code2Icon class="size-4 mr-2" />
+              About Developers
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem inset v-if="menuOptions.copyVersion">
+              Copy Version
+            </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuSeparator />
-        <ContextMenuItem inset v-if="menuOptions.exit">
+        <ContextMenuItem @click="exitOrRestart('exit')" inset v-if="menuOptions.exit">
           Quit
-          <ContextMenuShortcut>Ctrl+Q</ContextMenuShortcut>
+          <ContextMenuShortcut class="text-[11px]">Ctrl+Q</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

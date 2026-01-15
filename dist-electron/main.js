@@ -1,13 +1,15 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, } from "electron";
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, crashReporter, } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import os from "node:os";
 import axios from "axios";
-import { NotificationService } from "./notification.js";
-import { setupAutoUpdater } from "./updater.js";
+import { NotificationService } from "./utils/notification.js";
+import { setupAutoUpdater } from "./utils/updater.js";
+import log from "./utils/logger.js";
+// import { initDB, closeDB } from "./database/app.db.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-let db;
 let win = null;
 let tray = null;
 let isAppQuitting = false;
@@ -47,10 +49,53 @@ async function ensureExternalFileExists() {
         }
         else {
             retryCount = 0;
-            NotificationService.show("File Download Error", `Failed to download scanner.exe after 3 attempts.`);
+            NotificationService.show("File Download Error", `Failed to download scanner.exe, app might not work normal.`);
             throw error;
         }
     }
+}
+async function uploadPendingCrash() {
+    const crashFile = path.join(app.getPath("userData"), "ppsmb-crash", "crash-pending.json");
+    if (!fs.existsSync(crashFile))
+        return;
+    try {
+        const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
+        await axios.post("https://ppsmb.com.ng/api/crash/json", data);
+        fs.unlinkSync(crashFile);
+    }
+    catch { }
+}
+crashReporter.start({
+    productName: "Staff Manager",
+    companyName: "PPSMB",
+    submitURL: "https://api.axiolot.com.ng/ppsmb/crash/native",
+    uploadToServer: true,
+    compress: true,
+    ignoreSystemCrashHandler: false,
+    extra: {
+        version: app.getVersion(),
+        platform: process.platform,
+    },
+});
+function sendCrashReport(error, origin) {
+    try {
+        const crashDir = path.join(app.getPath("userData"), "ppsmb-crash");
+        if (!fs.existsSync(crashDir)) {
+            fs.mkdirSync(crashDir, { recursive: true });
+        }
+        const crashFile = path.join(crashDir, "crash-pending.json");
+        const crash = {
+            origin,
+            message: error.message,
+            stack: error.stack,
+            version: app.getVersion(),
+            platform: process.platform,
+            time: new Date().toISOString(),
+            release: os.release(),
+        };
+        fs.writeFileSync(crashFile, JSON.stringify(crash, null, 2));
+    }
+    catch { }
 }
 async function createWindow() {
     if (win) {
@@ -71,10 +116,11 @@ async function createWindow() {
         minWidth: 400,
         minHeight: 300,
         show: true,
+        backgroundColor: "#008435",
     });
     win.setMenuBarVisibility(false);
     setupAutoUpdater(win);
-    // initDB();
+    // initDB(app);
     const isDev = !app.isPackaged;
     if (isDev) {
         win.loadURL("http://localhost:3000");
@@ -93,15 +139,23 @@ async function createWindow() {
     });
     setupTray();
     win.webContents.on("context-menu", (_event, params) => {
+        if (!win)
+            return;
         const payload = {
             exit: true,
             version: true,
             __version: app.getVersion(),
             check: true,
-            release: "https://hello.com",
+            release: `https://axiolot.com.ng/ppsmb-file-manager?release=${app.getVersion()}`,
             copyVersion: true,
             restart: true,
         };
+        if (win.webContents.navigationHistory.canGoBack()) {
+            payload.back = true;
+        }
+        if (win.webContents.navigationHistory.canGoForward()) {
+            payload.forward = true;
+        }
         if (params.isEditable) {
             payload.cut = true;
             payload.copy = true;
@@ -116,20 +170,14 @@ async function createWindow() {
         }
         payload.x = params.x;
         payload.y = params.y;
-        win?.webContents.send("open-context-menu", payload);
+        win.webContents.send("open-context-menu", payload);
         _event.preventDefault();
     });
     await ensureExternalFileExists();
 }
-// function initDB() {
-//   const dbPath = path.join(app.getPath("userData"), "local.db");
-//   db = new Database(dbPath);
-//   db.pragma("journal_mode = WAL");
-//   db.exec(
-//     "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
-//   );
-// }
 function setupTray() {
+    if (tray)
+        return;
     const iconPath = path.join(__dirname, "../public/favicon.ico");
     const image = nativeImage.createFromPath(iconPath);
     if (image.isEmpty()) {
@@ -169,9 +217,28 @@ function setupTray() {
         }
     });
 }
-ipcMain.handle("db:get-data", (event, key) => {
+ipcMain.handle("db:get-data", (_event, key) => {
     // const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
     // return row ? row.value : null;
+});
+ipcMain.handle("app:exitOrRestart", (_event, action) => {
+    if (action === "exit") {
+        app.quit();
+    }
+    else {
+        app.relaunch();
+        app.exit(0);
+    }
+});
+ipcMain.handle("app:navigateHistory", (_event, action) => {
+    if (!win)
+        return;
+    if (action === "back") {
+        win.webContents.navigationHistory.goBack();
+    }
+    else {
+        win.webContents.navigationHistory.goForward();
+    }
 });
 ipcMain.handle("open-modal", (_event, routeUrl, options) => {
     const allWindows = BrowserWindow.getAllWindows();
@@ -186,11 +253,9 @@ ipcMain.handle("open-modal", (_event, routeUrl, options) => {
         }
         return;
     }
-    console.log(options.icon);
     if (!options.icon) {
         options.icon = path.join(__dirname, "../public/favicon.ico");
     }
-    console.log(options.icon);
     const modal = new BrowserWindow({
         parent: win,
         modal: true,
@@ -215,16 +280,35 @@ ipcMain.handle("open-modal", (_event, routeUrl, options) => {
         modal.show();
     });
 });
+ipcMain.handle("db:sync", (_event) => {
+    //sync db data if internet
+});
 ipcMain.handle("open-browser", (_event, url) => {
     shell.openExternal(url);
 });
-app.whenReady().then(createWindow);
+ipcMain.handle("notification", (_event, title, body) => {
+    NotificationService.show(title, body);
+});
+process.on("uncaughtException", (error) => {
+    log.error("Uncaught Exception", error);
+    sendCrashReport(error, "uncaughtException");
+});
+process.on("unhandledRejection", (reason) => {
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    log.error("Unhandled Promise Rejection", error);
+    sendCrashReport(error, "unhandledRejection");
+});
+app.whenReady().then(() => {
+    if (BrowserWindow.getAllWindows().length === 0 && win === null)
+        createWindow();
+    uploadPendingCrash().catch((e) => log.error("Failed to upload crash", e));
+});
 app.on("before-quit", () => {
     isAppQuitting = true;
-    // if (db) db.close();
+    // closeDB();
 });
 app.on("will-quit", () => {
-    // if (db) db.close();
+    // closeDB();
 });
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {

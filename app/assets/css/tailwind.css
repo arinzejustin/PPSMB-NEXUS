@@ -125,7 +125,7 @@
 
 @layer components {
   .app-btn {
-    @apply bg-primary text-primary-foreground rounded-lg px-6 py-2;
+    @apply bg-primary! text-primary-foreground! rounded-lg! px-6! py-5!;
   }
 }
 
