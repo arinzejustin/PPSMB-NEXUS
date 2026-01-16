@@ -1,3 +1,5 @@
+import type { UserDetails, Auth } from "#shared/types";
+
 export default defineNuxtRouteMiddleware(async (to, _from) => {
   if (import.meta.server) return;
 
@@ -16,9 +18,6 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
       }
     }
   } else {
-    if (to.path !== "/login" && to.path !== "/pin") {
-      return navigateTo(to.path);
-    }
-    console.log(to.path, _from.path);
+    console.log("fired");
   }
 });

@@ -47,6 +47,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     keySecret: "",
     domainCookie: "",
+    supabaseUrl: "",
+    supabaseKey: "",
     public: {
       appType: "",
     },

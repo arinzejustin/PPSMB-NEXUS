@@ -72,6 +72,10 @@ watch(errCount, (count) => {
 });
 
 onMounted(() => {
+    if (!import.meta.client) return;
+    if (!window.electronAPI) {
+        return navigateTo('/login');
+    }
     const storedLockout = getStorage<string | null>('pinLockoutEnd');
     if (storedLockout) {
         const lockoutEnd = parseInt(storedLockout, 10);
@@ -156,12 +160,6 @@ const handleLogout = () => {
     navigateTo('/login');
 };
 
-onMounted(() => {
-    if (!import.meta.client) return;
-    if (!window.electronAPI) {
-        navigateTo('/login');
-    }
-});
 </script>
 
 <template>

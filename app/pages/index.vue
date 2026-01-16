@@ -2,7 +2,7 @@
 import { defineComponent } from 'vue';
 import { navigateTo } from 'nuxt/app';
 import { Button } from "@/components/ui/button";
-import { openUrl } from '~/shared/urlHandler';
+import { openUrl } from '#shared/urlHandler';
 
 
 export default defineComponent({

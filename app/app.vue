@@ -193,7 +193,7 @@ export default defineComponent({
           console.warn("Search Teacher not implemented");
         } else if (key === 'i') {
           // e.preventDefault();
-          // if (this.route.path !== "/app") navigateTo("/pin");
+          //navigateTo("/pin");
         }
       }
     },
@@ -204,7 +204,7 @@ export default defineComponent({
     this.changeRotation();
     setInterval(() => {
       this.refreshToken();
-    }, 1000 * 60 * 1);
+    }, 1000 * 60 * 30);
 
     let urlTo = "/";
 
@@ -282,12 +282,11 @@ export default defineComponent({
           setStorage('hasLoggedIn', false);
         }
       };
-      navigateTo(urlTo);
 
+      navigateTo(urlTo)
       await new Promise((resolve) => setTimeout(resolve, 4000));
       return this.loading = false;
     }
-    navigateTo(urlTo)
 
     await new Promise((resolve) => setTimeout(resolve, 4000));
     this.loading = false;
