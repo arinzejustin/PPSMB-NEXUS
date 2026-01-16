@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
-import { useHead, useRuntimeConfig, navigateTo } from 'nuxt/app';
+import { useHead, useRuntimeConfig, navigateTo, useUser, definePageMeta, showToast, errorParser } from '#imports';
 import { CardContent, CardDescription, CardFooter, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,18 +9,24 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input';
 import { ChevronRight, ChevronLeft } from "lucide-vue-next";
-import type { LoginAuth } from "@/types/index"
+import { openUrl } from "#shared/urlHandler";
+import { setStorage } from '@/lib/storage';
+import type { LoginAuth, ResponseStatus } from "@/types/index";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_IDENTIFIER_LENGTH = 3;
+const MIN_PASSWORD_LENGTH = 6;
+const PIN_LENGTH = 4;
 
-const env = useRuntimeConfig();
-
-// Page meta
 definePageMeta({
     layout: "auth"
 });
+const env = useRuntimeConfig();
+const user = useUser();
+const isDesktop = computed(() => env.public.appType === 'desktop');
 
 useHead({
-    title: env.public.appType === 'desktop' ? 'PPSMB Staff Manager' : 'Login - PPSMB Staff Manager'
+    title: isDesktop.value ? 'PPSMB Staff Manager' : 'Login - PPSMB Staff Manager'
 });
 
 const form = reactive({
@@ -29,114 +35,51 @@ const form = reactive({
     rememberMe: false
 });
 
-const isLoading = ref(false);
-const showPassword = ref(false);
-const formSubmitted = ref(false);
-const hasSetPin = ref(true)
-const showPinModal = ref(false)
-const pinStep = ref<'set' | 'confirm'>('set')
-const pinValue = ref<number[]>([])
-const confirmPinValue = ref<number[]>([])
-const pinError = ref('')
-const isPinLoading = ref(false)
-
-const handlePinComplete = (value: number[]) => {
-    if (pinStep.value === 'set') {
-        pinValue.value = value
-    } else {
-        confirmPinValue.value = value
-    }
-}
-
-const goToConfirmStep = () => {
-    if (pinValue.value.length === 4 && pinValue.value.every(v => v !== null)) {
-        pinError.value = ''
-        pinStep.value = 'confirm'
-        confirmPinValue.value = []
-    } else {
-        pinError.value = 'Please enter a 4-digit PIN'
-    }
-}
-
-const goBackToSetStep = () => {
-    pinStep.value = 'set'
-    confirmPinValue.value = []
-    pinError.value = ''
-}
-
-const submitPin = async () => {
-    const pin = pinValue.value.join('')
-    const confirmPin = confirmPinValue.value.join('')
-
-    if (confirmPinValue.value.length !== 4 || confirmPinValue.value.some(v => v === null)) {
-        pinError.value = 'Please enter a 4-digit PIN'
-        return
-    }
-
-    if (pin !== confirmPin) {
-        pinError.value = 'PINs do not match. Please try again.'
-        confirmPinValue.value = []
-        return
-    }
-
-    isPinLoading.value = true
-    pinError.value = ''
-
-    try {
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        console.log('PIN set successfully:', pin)
-
-        hasSetPin.value = true
-        showPinModal.value = false
-
-        pinStep.value = 'set'
-        pinValue.value = []
-        confirmPinValue.value = []
-    } catch (error: any) {
-        pinError.value = error.message || 'Failed to set PIN. Please try again.'
-    } finally {
-        isPinLoading.value = false
-    }
-}
-
-watch(hasSetPin, (value) => {
-    if (!value) {
-        showPinModal.value = true
-    }
-}, { immediate: true })
-
-const isPinStepValid = computed(() => {
-    if (pinStep.value === 'set') {
-        return pinValue.value.length === 4 && pinValue.value.every(v => v !== null)
-    }
-    return confirmPinValue.value.length === 4 && confirmPinValue.value.every(v => v !== null)
-})
-
 const errors = reactive({
     identifier: '',
     password: '',
     general: ''
 });
 
+const isLoading = ref(false);
+const showPassword = ref(false);
+const formSubmitted = ref(false);
+const loginDetails = ref<LoginAuth | undefined>(undefined);
+
+const hasSetPin = ref(true);
+const showPinModal = ref(false);
+const pinStep = ref<'set' | 'confirm'>('set');
+const pinValue = ref<number[]>([]);
+const confirmPinValue = ref<number[]>([]);
+const pinError = ref('');
+const isPinLoading = ref(false);
+
 const isEmail = (value: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(value);
+    return EMAIL_REGEX.test(value);
+};
+
+const isValidPinArray = (pin: number[]): boolean => {
+    return pin.length === PIN_LENGTH && pin.every(value => value !== null);
 };
 
 const validateIdentifier = (): boolean => {
-    if (!form.identifier.trim()) {
+    const identifier = form.identifier.trim();
+
+    if (!identifier) {
         errors.identifier = 'Email or username is required';
         return false;
     }
 
-    if (form.identifier.includes('@') && !isEmail(form.identifier)) {
+    if (identifier.includes('@') && !isEmail(identifier)) {
         errors.identifier = 'Please enter a valid email address';
         return false;
     }
-    if (form.identifier.length < 3) {
+
+    if (identifier.length < MIN_IDENTIFIER_LENGTH) {
         errors.identifier = 'Must be at least 3 characters';
         return false;
     }
+
     errors.identifier = '';
     return true;
 };
@@ -146,10 +89,12 @@ const validatePassword = (): boolean => {
         errors.password = 'Password is required';
         return false;
     }
-    if (form.password.length < 6) {
+
+    if (form.password.length < MIN_PASSWORD_LENGTH) {
         errors.password = 'Password must be at least 6 characters';
         return false;
     }
+
     errors.password = '';
     return true;
 };
@@ -160,23 +105,117 @@ const validateForm = (): boolean => {
     return isIdentifierValid && isPasswordValid;
 };
 
-const onIdentifierBlur = () => {
+const onIdentifierBlur = (): void => {
     if (formSubmitted.value || form.identifier) {
         validateIdentifier();
     }
 };
 
-const onPasswordBlur = () => {
+const onPasswordBlur = (): void => {
     if (formSubmitted.value || form.password) {
         validatePassword();
     }
 };
 
-const clearError = (field: 'identifier' | 'password' | 'general') => {
+const clearError = (field: 'identifier' | 'password' | 'general'): void => {
     errors[field] = '';
 };
 
-const handleSubmit = async () => {
+const handlePinComplete = (value: number[]): void => {
+    if (pinStep.value === 'set') {
+        pinValue.value = value;
+    } else {
+        confirmPinValue.value = value;
+    }
+};
+
+const goToConfirmStep = (): void => {
+    if (isValidPinArray(pinValue.value)) {
+        pinError.value = '';
+        pinStep.value = 'confirm';
+        confirmPinValue.value = [];
+    } else {
+        pinError.value = 'Please enter a 4-digit PIN';
+    }
+};
+
+const goBackToSetStep = (): void => {
+    pinStep.value = 'set';
+    confirmPinValue.value = [];
+    pinError.value = '';
+};
+
+const resetPinModal = (): void => {
+    pinStep.value = 'set';
+    pinValue.value = [];
+    confirmPinValue.value = [];
+    pinError.value = '';
+};
+
+const submitPin = async (): Promise<void> => {
+    if (!isValidPinArray(confirmPinValue.value)) {
+        pinError.value = 'Please enter a 4-digit PIN';
+        return;
+    }
+
+    const pin = pinValue.value.join('');
+    const confirmPin = confirmPinValue.value.join('');
+
+    if (pin !== confirmPin) {
+        pinError.value = 'PINs do not match. Please try again.';
+        confirmPinValue.value = [];
+        return;
+    }
+
+    isPinLoading.value = true;
+    pinError.value = '';
+
+    try {
+        const data = await $fetch<ResponseStatus>("/api/auth/set-pin", {
+            method: "POST",
+            body: {
+                pin
+            }
+        })
+
+        if (!data.status) {
+            pinError.value = data.message;
+            return;
+        }
+
+        hasSetPin.value = true;
+        showPinModal.value = false;
+        resetPinModal();
+
+        if (!loginDetails.value) {
+            throw new Error("Failed to authenicate.")
+        }
+
+        user.value = {
+            ...loginDetails.value.user,
+            isAuthenticated: true,
+            token: loginDetails.value.token,
+            hasSetPin: true
+        };
+
+        if (window.electronAPI) {
+            setStorage("userDetails", loginDetails.value.user);
+            window.electronAPI.saveData({
+                ...user.value,
+                pin: loginDetails.value.pin || null
+            })
+        }
+
+        navigateTo("/")
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to set PIN. Please try again.';
+        pinError.value = errorMessage;
+    } finally {
+        isPinLoading.value = false;
+    }
+};
+
+const handleSubmit = async (): Promise<void> => {
     formSubmitted.value = true;
     errors.general = '';
 
@@ -187,30 +226,65 @@ const handleSubmit = async () => {
     isLoading.value = true;
 
     try {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        console.log('Login attempt:', {
-            identifier: form.identifier,
-            rememberMe: form.rememberMe
+        const data = await $fetch<LoginAuth>("/api/auth/login", {
+            method: "POST",
+            body: {
+                identifier: form.identifier,
+                password: form.password,
+                rememberMe: form.rememberMe,
+                appType: isDesktop.value ? 'desktop' : 'web'
+            }
         });
 
-        hasSetPin.value = false;
-        showPinModal.value = true
+        if (data.status) {
+            if (!data.hasSetPin) {
+                hasSetPin.value = false;
+                showPinModal.value = true;
+                loginDetails.value = data;
+                return;
+            }
 
-        //navigateTo('/dashboard');
+            user.value = {
+                ...data.user,
+                isAuthenticated: true,
+                token: data.token,
+                hasSetPin: data.hasSetPin,
+            };
 
-    } catch (error: any) {
-        errors.general = error.message || 'An error occurred. Please try again.';
+            if (window.electronAPI) {
+                setStorage("userDetails", data.user)
+                window.electronAPI.saveData({
+                    ...user.value,
+                    pin: data.pin || null
+                })
+            }
+            await navigateTo('/');
+        } else {
+            showToast(data.message || 'Login failed', 'error');
+        }
+    } catch (error) {
+        errorParser(error as Error)
     } finally {
         isLoading.value = false;
     }
 };
 
-
 const isButtonDisabled = computed(() => {
     return isLoading.value || !form.identifier || !form.password;
 });
 
+const isPinStepValid = computed(() => {
+    if (pinStep.value === 'set') {
+        return isValidPinArray(pinValue.value);
+    }
+    return isValidPinArray(confirmPinValue.value);
+});
+
+watch(hasSetPin, (value) => {
+    if (!value) {
+        showPinModal.value = true;
+    }
+}, { immediate: true });
 </script>
 
 <template>
@@ -276,8 +350,8 @@ const isButtonDisabled = computed(() => {
                             <Label for="password" class="text-sm font-medium">
                                 Password
                             </Label>
-                            <NuxtLink to="/forgot-password"
-                                class="text-xs text-primary hover:text-primary/80 hover:underline transition-colors">
+                            <NuxtLink @click="openUrl('https://axiolot.com.ng/ppsmb/forgot-password')"
+                                class="text-xs cursor-pointer text-primary hover:text-primary/80 hover:underline transition-colors">
                                 Forgot password?
                             </NuxtLink>
                         </div>
@@ -321,8 +395,8 @@ const isButtonDisabled = computed(() => {
                         </p>
                     </div>
                     <div class="flex items-center space-x-2 mb-3">
-                        <Checkbox id="remember" :checked="form.rememberMe"
-                            @update:checked="(val: boolean) => form.rememberMe = val" />
+                        <Checkbox id="remember" :modelValue="form.rememberMe"
+                            @update:modelValue="(val: boolean | string) => form.rememberMe = Boolean(val)" />
                         <Label for="remember" class="text-sm font-normal text-muted-foreground cursor-pointer">
                             Remember me for 30 days
                         </Label>
@@ -372,7 +446,7 @@ const isButtonDisabled = computed(() => {
             Secured connection
         </p>
         <Dialog :open="showPinModal && !hasSetPin" @update:open="(val) => showPinModal = val">
-            <DialogContent class="sm:max-w-md" :hideClose="true">
+            <DialogContent class="sm:max-w-md">
                 <DialogHeader class="text-center">
                     <div class="flex justify-center mb-4">
                         <div

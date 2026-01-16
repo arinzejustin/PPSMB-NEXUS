@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
+    "@types/jsonwebtoken": "^9.0.10",
     "@vueuse/core": "^14.1.0",
     "axios": "^1.13.2",
     "better-sqlite3": "^12.5.0",
@@ -31,12 +32,14 @@
     "electron-log": "^5.4.3",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.7.3",
+    "jsonwebtoken": "^9.0.3",
     "lucide-vue-next": "^0.562.0",
     "nuxt": "^4.2.2",
     "reka-ui": "^2.7.0",
     "shadcn-nuxt": "^2.4.3",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^13.0.0",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4",
     "vue-sonner": "^2.0.9"

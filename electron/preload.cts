@@ -17,6 +17,10 @@ const appBridge: IElectronAPI = {
   getData: (key) => ipcRenderer.invoke("db:get-data", key),
   syncRecords: () => ipcRenderer.invoke("db:sync"),
 
+  // Authentication
+  verifyPin: (pin: string, uuid: string) =>
+    ipcRenderer.invoke("auth:verify-pin", pin, uuid),
+
   // Notification
   sendNotification: (title, body) =>
     ipcRenderer.send("notification", title, body),
@@ -52,14 +56,3 @@ try {
 } catch (error) {
   console.error("Failed to expose Electron API:", error);
 }
-
-// // Global error handler
-// addEventListener("error", (event) => {
-//   ipcRenderer.send("renderer-crash", {
-//     message: event.message,
-//     stack: event.error?.stack,
-//     filename: event.filename,
-//     lineno: event.lineno,
-//     colno: event.colno,
-//   });
-// });

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRoute, navigateTo, useHead, useRuntimeConfig } from 'nuxt/app';
+import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, clearNuxtData } from '#imports';
 import { CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input';
@@ -23,6 +23,8 @@ const pinValue = ref<number[]>([]);
 const pinError = ref('');
 const isLoading = ref(false);
 const errCount = ref(0);
+const user = useUser();
+
 
 const lockoutEndTime = ref<number | null>(null);
 const remainingTime = ref(0);
@@ -99,7 +101,6 @@ onUnmounted(() => {
 const redirectUrl = computed(() => {
     return (route.query.redirect as string) || '/';
 });
-const userDisplayName = ref('Justin');
 
 const handlePinComplete = (value: number[]) => {
     pinValue.value = value;
@@ -127,9 +128,10 @@ const verifyPin = async () => {
 
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        const isValid = false;
+        const validData = await window.electronAPI.verifyPin(pin, user?.uuid);
 
-        if (isValid) {
+        if (validData) {
+            user.value = validData;
             await navigateTo(redirectUrl.value);
         } else {
             errCount.value++;
@@ -149,8 +151,17 @@ const verifyPin = async () => {
 };
 
 const handleLogout = () => {
+    deleteStorage("userDetails")
+    clearNuxtData();
     navigateTo('/login');
 };
+
+onMounted(() => {
+    if (!import.meta.client) return;
+    if (!window.electronAPI) {
+        navigateTo('/login');
+    }
+});
 </script>
 
 <template>
@@ -165,7 +176,7 @@ const handleLogout = () => {
                 </div>
 
                 <CardTitle class="text-2xl font-inter uppercase mb-1 font-bold text-center">
-                    Welcome, {{ userDisplayName }}
+                    Welcome, {{ user?.name.split(" ")[0] }}
                 </CardTitle>
                 <CardDescription class="text-center font-app text-base text-muted-foreground font-app">
                     Enter your PIN to continue

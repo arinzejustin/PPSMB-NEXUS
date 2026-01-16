@@ -19,6 +19,7 @@
   "include": [
     "app/**/*",
     "electron/**/*",
-    "electron.d.ts"
+    "electron.d.ts",
+    "shared"
   ]
 }

@@ -12,6 +12,8 @@ const appBridge = {
     saveData: (item) => electron_1.ipcRenderer.invoke("db:save", item),
     getData: (key) => electron_1.ipcRenderer.invoke("db:get-data", key),
     syncRecords: () => electron_1.ipcRenderer.invoke("db:sync"),
+    // Authentication
+    verifyPin: (pin, uuid) => electron_1.ipcRenderer.invoke("auth:verify-pin", pin, uuid),
     // Notification
     sendNotification: (title, body) => electron_1.ipcRenderer.send("notification", title, body),
     // Document scanner
@@ -38,13 +40,3 @@ try {
 catch (error) {
     console.error("Failed to expose Electron API:", error);
 }
-// // Global error handler
-// addEventListener("error", (event) => {
-//   ipcRenderer.send("renderer-crash", {
-//     message: event.message,
-//     stack: event.error?.stack,
-//     filename: event.filename,
-//     lineno: event.lineno,
-//     colno: event.colno,
-//   });
-// });

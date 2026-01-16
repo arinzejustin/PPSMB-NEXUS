@@ -1,9 +1,8 @@
 export interface Auth {
   isAuthenticated: boolean;
   token: string | null;
-  expiresAt: number | null;
   hasSetPin: boolean;
-  pin: string | null;
+  pin?: string;
 }
 
 export interface UserDetails {
@@ -14,5 +13,5 @@ export interface UserDetails {
   lastLogin: number;
   deviceId: string;
   devices: string[];
+  uuid: string;
 }
-

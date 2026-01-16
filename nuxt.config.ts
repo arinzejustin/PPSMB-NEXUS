@@ -34,6 +34,7 @@ export default defineNuxtConfig({
   css: [
     isDesktop ? "@/assets/css/font-desktop.css" : "@/assets/css/font-web.css",
     "@/assets/css/animate.css",
+    "vue-sonner/style.css",
   ],
   tailwindcss: {
     cssPath: [
@@ -44,6 +45,8 @@ export default defineNuxtConfig({
     ],
   },
   runtimeConfig: {
+    keySecret: "",
+    domainCookie: "",
     public: {
       appType: "",
     },
@@ -54,5 +57,8 @@ export default defineNuxtConfig({
         external: ["better-sqlite3"],
       },
     },
+  },
+  imports: {
+    dirs: ["@/composables/**"],
   },
 });
