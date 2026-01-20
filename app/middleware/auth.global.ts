@@ -1,23 +1,38 @@
 import type { UserDetails, Auth } from "#shared/types";
 
-export default defineNuxtRouteMiddleware(async (to, _from) => {
-  if (import.meta.server) return;
-
+export default defineNuxtRouteMiddleware(async (to, from) => {
   const user = useUser();
+  const token = useToken();
+
+  if (user.value?.isAuthenticated) return;
+
   const publicRoutes = ["/login", "/pin"];
   const isPublicRoute = publicRoutes.includes(to.path);
+  const redirectTo = encodeURIComponent(to.path);
 
-  if (!user.value || !user.value.isAuthenticated) {
-    if (!isPublicRoute) {
-      try {
-        const { data } = await useFetch<UserDetails & Auth>("/api/auth/me");
-        if (data.value && data.value.isAuthenticated) user.value = data.value;
-        else return navigateTo("/login");
-      } catch {
-        return navigateTo("/login");
+  if (!isPublicRoute) {
+    console.log("..");
+    try {
+      const data = await $fetch<UserDetails & Auth>(
+        "/api/auth/me?to=" + from.path,
+        {
+          headers: {
+            "x-auth-token": token.value || "",
+          },
+        },
+      );
+
+      if (data.isAuthenticated) {
+        user.value = data;
+      } else {
+        if (from.path === "/pin")
+          return navigateTo(`/pin?redirect=${redirectTo}`);
+        return navigateTo(`/login?redirect=${redirectTo}`);
       }
+    } catch (error: any) {
+      if (from.path === "/pin")
+        return navigateTo(`/pin?redirect=${redirectTo}`);
+      return navigateTo(`/login?redirect=${redirectTo}`);
     }
-  } else {
-    console.log("fired");
   }
 });

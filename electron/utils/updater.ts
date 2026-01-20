@@ -1,17 +1,9 @@
 import pkg from "electron-updater";
 import { BrowserWindow, ipcMain, app } from "electron";
-import Store from "electron-store";
 import { NotificationService } from "./notification.js";
+import { storeHelper } from "../store/store.js";
 
 const { autoUpdater } = pkg;
-
-const StoreConstructor = (Store as any).default || Store;
-
-const store = new StoreConstructor({
-  defaults: {
-    updateDownloaded: false,
-  },
-});
 
 export function setupAutoUpdater(mainWindow: BrowserWindow) {
   autoUpdater.autoDownload = false;
@@ -26,8 +18,8 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
   });
 
   autoUpdater.on("update-downloaded", (info) => {
-    store.set("updateDownloaded", true);
-    store.set("updateVersion", info.version);
+    storeHelper.set("updateDownloaded", true);
+    storeHelper.set("updateVersion", info.version);
 
     mainWindow.webContents.send("update-downloaded");
   });
@@ -35,7 +27,7 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
   autoUpdater.on("update-not-available", () => {
     NotificationService.show(
       "Up to Date",
-      "You are already running the latest version."
+      "You are already running the latest version.",
     );
   });
 
@@ -48,20 +40,20 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
   });
 
   ipcMain.handle("get-update-state", () => ({
-    downloaded: store.get("updateDownloaded"),
-    version: store.get("updateVersion"),
+    downloaded: storeHelper.get("updateDownloaded"),
+    version: storeHelper.get("updateVersion"),
   }));
 
   ipcMain.on("check-for-updates", () => {
     NotificationService.show(
       "Up to Date",
-      "You are already running the latest version."
+      "You are already running the latest version.",
     );
     autoUpdater.checkForUpdates();
   });
 
   app.on("before-quit", () => {
-    if (!store.get("updateDownloaded")) return;
+    if (!storeHelper.get("updateDownloaded")) return;
   });
 
   autoUpdater.checkForUpdates();

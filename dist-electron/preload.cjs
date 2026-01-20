@@ -8,10 +8,25 @@ function on(channel, handler) {
     return () => electron_1.ipcRenderer.removeListener(channel, listener);
 }
 const appBridge = {
-    // Database
+    dbInsert: (tableName, doc) => electron_1.ipcRenderer.invoke("db:insert", tableName, doc),
+    dbFind: (tableName, query, sort, limit, skip) => electron_1.ipcRenderer.invoke("db:find", tableName, query, sort, limit, skip),
+    dbFindOne: (tableName, query) => electron_1.ipcRenderer.invoke("db:findOne", tableName, query),
+    dbUpdate: (tableName, query, update, options) => electron_1.ipcRenderer.invoke("db:update", tableName, query, update, options),
+    dbDelete: (tableName, query, options) => electron_1.ipcRenderer.invoke("db:delete", tableName, query, options),
+    dbCount: (tableName, query) => electron_1.ipcRenderer.invoke("db:count", tableName, query),
+    syncRecords: () => electron_1.ipcRenderer.invoke("db:sync"),
+    //idle
+    onIdle: (cb) => on("idle", cb),
+    // from store
+    getSetting: (key) => electron_1.ipcRenderer.invoke("store:getSetting", key),
+    setSetting: (key, value) => electron_1.ipcRenderer.invoke("store:setSetting", key, value),
+    get: (key) => electron_1.ipcRenderer.invoke("store:get", key),
+    set: (key, value) => electron_1.ipcRenderer.invoke("store:set", key, value),
+    getUser: () => electron_1.ipcRenderer.invoke("store:getUser"),
+    clearUser: () => electron_1.ipcRenderer.invoke("store:clearUser"),
+    // Legacy/Helpers
     saveData: (item) => electron_1.ipcRenderer.invoke("db:save", item),
     getData: (key) => electron_1.ipcRenderer.invoke("db:get-data", key),
-    syncRecords: () => electron_1.ipcRenderer.invoke("db:sync"),
     // Authentication
     verifyPin: (pin, uuid) => electron_1.ipcRenderer.invoke("auth:verify-pin", pin, uuid),
     // Notification
@@ -33,6 +48,13 @@ const appBridge = {
     navigateHistory: (action) => electron_1.ipcRenderer.invoke("app:navigateHistory", action),
     // Context menu
     openContextMenu: (cb) => on("open-context-menu", cb),
+    getSystemTheme: () => electron_1.ipcRenderer.invoke("theme:getSystemTheme"),
+    onSystemThemeChange: (callback) => {
+        electron_1.ipcRenderer.on("theme:system-changed", (_event, theme) => callback(theme));
+        return () => {
+            electron_1.ipcRenderer.removeAllListeners("theme:system-changed");
+        };
+    },
 };
 try {
     electron_1.contextBridge.exposeInMainWorld("electronAPI", appBridge);

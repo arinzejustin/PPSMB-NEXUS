@@ -14,4 +14,5 @@ export interface UserDetails {
   deviceId: string;
   devices: string[];
   uuid: string;
+  username: string;
 }

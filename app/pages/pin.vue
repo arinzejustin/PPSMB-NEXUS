@@ -1,165 +1,207 @@
-<script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, clearNuxtData } from '#imports';
+import { useLockWindow } from '@/composables/useLockWindow';
 import { CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input';
 import { ChevronRight, ClockFading, CircleAlert, LockKeyhole, LogIn } from 'lucide-vue-next';
 import { setStorage, getStorage, deleteStorage } from '@/lib/storage';
 
-const env = useRuntimeConfig();
+export default defineComponent({
+    setup() {
+        const env = useRuntimeConfig();
+        const user = useUser()
+        const { lockSession, unLockSession } = useLockWindow()
 
-definePageMeta({
-    layout: 'auth'
-});
+        definePageMeta({
+            layout: 'auth'
+        });
 
-useHead({
-    title: env.public.appType === 'desktop' ? 'PPSMB Staff Manager' : 'Unlock - PPSMB Staff Manager'
-});
+        useHead({
+            title: env.public.appType === 'desktop' ? 'PPSMB Staff Manager' : 'Unlock - PPSMB Staff Manager'
+        });
 
-const route = useRoute();
+        return {
+            user,
+            lockSession,
+            unLockSession
+        }
+    },
 
-const pinValue = ref<number[]>([]);
-const pinError = ref('');
-const isLoading = ref(false);
-const errCount = ref(0);
-const user = useUser();
+    components: {
+        CardTitle,
+        CardDescription,
+        Button,
+        PinInput,
+        PinInputGroup,
+        PinInputSlot,
+        ChevronRight,
+        ClockFading,
+        CircleAlert,
+        LockKeyhole,
+        LogIn
+    },
 
+    data() {
+        return {
+            pinValue: [] as number[],
+            pinError: '',
+            isLoading: false,
+            errCount: 0,
+            lockoutEndTime: null as number | null,
+            remainingTime: 0,
+            lockoutTimer: null as ReturnType<typeof setInterval> | null,
+            LOCKOUT_DURATION: 10 * 60 * 1000,
+            MAX_ATTEMPTS: 6,
+        };
+    },
 
-const lockoutEndTime = ref<number | null>(null);
-const remainingTime = ref(0);
-let lockoutTimer: ReturnType<typeof setInterval> | null = null;
+    computed: {
+        isLockedOut(): boolean {
+            return this.lockoutEndTime !== null && this.remainingTime > 0;
+        },
 
-const LOCKOUT_DURATION = 10 * 60 * 1000;
-const MAX_ATTEMPTS = 6;
+        redirectUrl(): string {
+            const route = useRoute();
+            return (route.query.redirect as string) || '/';
+        }
+    },
 
-const isLockedOut = computed(() => {
-    return lockoutEndTime.value !== null && remainingTime.value > 0;
-});
+    watch: {
+        errCount(count: number) {
+            if (count >= this.MAX_ATTEMPTS && !this.lockoutEndTime) {
+                this.lockoutEndTime = Date.now() + this.LOCKOUT_DURATION;
+                this.remainingTime = this.LOCKOUT_DURATION;
+                this.startLockoutTimer();
+            }
+        },
 
-const formatTime = (ms: number): string => {
-    const totalSeconds = Math.ceil(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
-
-const startLockoutTimer = () => {
-    if (lockoutTimer) clearInterval(lockoutTimer);
-
-    lockoutTimer = setInterval(() => {
-        if (lockoutEndTime.value) {
-            const remaining = lockoutEndTime.value - Date.now();
-            if (remaining <= 0) {
-                lockoutEndTime.value = null;
-                remainingTime.value = 0;
-                errCount.value = 0;
-                pinError.value = '';
-                if (lockoutTimer) clearInterval(lockoutTimer);
+        lockoutEndTime(endTime: number | null) {
+            if (endTime) {
+                setStorage('pinLockoutEnd', endTime.toString());
             } else {
-                remainingTime.value = remaining;
+                deleteStorage('pinLockoutEnd');
             }
         }
-    }, 1000);
-};
+    },
 
-watch(errCount, (count) => {
-    if (count >= MAX_ATTEMPTS && !lockoutEndTime.value) {
-        lockoutEndTime.value = Date.now() + LOCKOUT_DURATION;
-        remainingTime.value = LOCKOUT_DURATION;
-        startLockoutTimer();
-    }
-});
+    mounted() {
+        if (!import.meta.client) return;
 
-onMounted(() => {
-    if (!import.meta.client) return;
-    if (!window.electronAPI) {
-        return navigateTo('/login');
-    }
-    const storedLockout = getStorage<string | null>('pinLockoutEnd');
-    if (storedLockout) {
-        const lockoutEnd = parseInt(storedLockout, 10);
-        if (lockoutEnd > Date.now()) {
-            lockoutEndTime.value = lockoutEnd;
-            remainingTime.value = lockoutEnd - Date.now();
-            errCount.value = MAX_ATTEMPTS;
-            startLockoutTimer();
-        } else {
-            deleteStorage('pinLockoutEnd');
+        if (!window.electronAPI || !this.user) {
+            return navigateTo('/login');
         }
-    }
-});
+        this.lockSession();
 
-watch(lockoutEndTime, (endTime) => {
-    if (endTime) {
-        setStorage('pinLockoutEnd', endTime.toString());
-    } else {
-        deleteStorage('pinLockoutEnd');
-    }
-});
-
-onUnmounted(() => {
-    if (lockoutTimer) clearInterval(lockoutTimer);
-});
-
-const redirectUrl = computed(() => {
-    return (route.query.redirect as string) || '/';
-});
-
-const handlePinComplete = (value: number[]) => {
-    pinValue.value = value;
-    if (value.length === 4 && value.every(v => v !== null)) {
-        verifyPin();
-    }
-};
-
-const verifyPin = async () => {
-    if (isLockedOut.value) {
-        pinError.value = `Too many attempts. Try again in ${formatTime(remainingTime.value)}`;
-        return;
-    }
-
-    if (pinValue.value.length !== 4 || pinValue.value.some(v => v === null)) {
-        pinError.value = 'Please enter a 4-digit PIN';
-        return;
-    }
-
-    isLoading.value = true;
-    pinError.value = '';
-
-    try {
-        const pin = pinValue.value.join('');
-
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        const validData = await window.electronAPI.verifyPin(pin, user?.uuid);
-
-        if (validData) {
-            user.value = validData;
-            await navigateTo(redirectUrl.value);
-        } else {
-            errCount.value++;
-            if (errCount.value >= MAX_ATTEMPTS) {
-                pinError.value = `Too many attempts. Try again in ${formatTime(LOCKOUT_DURATION)}`;
+        const storedLockout = getStorage<string | null>('pinLockoutEnd');
+        if (storedLockout) {
+            const lockoutEnd = parseInt(storedLockout, 10);
+            if (lockoutEnd > Date.now()) {
+                this.lockoutEndTime = lockoutEnd;
+                this.remainingTime = lockoutEnd - Date.now();
+                this.errCount = this.MAX_ATTEMPTS;
+                this.startLockoutTimer();
             } else {
-                pinError.value = `Incorrect PIN. ${MAX_ATTEMPTS - errCount.value} attempts remaining.`;
+                deleteStorage('pinLockoutEnd');
             }
-            pinValue.value = [];
         }
-    } catch (error: any) {
-        pinError.value = error.message || 'Verification failed. Please try again.';
-        pinValue.value = [];
-    } finally {
-        isLoading.value = false;
+    },
+
+    unmounted() {
+        if (this.lockoutTimer) {
+            clearInterval(this.lockoutTimer);
+        }
+    },
+
+    methods: {
+        formatTime(ms: number): string {
+            const totalSeconds = Math.ceil(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        },
+
+        startLockoutTimer() {
+            if (this.lockoutTimer) clearInterval(this.lockoutTimer);
+
+            this.lockoutTimer = setInterval(() => {
+                if (this.lockoutEndTime) {
+                    const remaining = this.lockoutEndTime - Date.now();
+                    if (remaining <= 0) {
+                        this.lockoutEndTime = null;
+                        this.remainingTime = 0;
+                        this.errCount = 0;
+                        this.pinError = '';
+                        if (this.lockoutTimer) clearInterval(this.lockoutTimer);
+                    } else {
+                        this.remainingTime = remaining;
+                    }
+                }
+            }, 1000);
+        },
+
+        handlePinComplete(value: number[]) {
+            this.pinValue = value;
+            if (value.length === 4 && value.every(v => v !== null)) {
+                this.verifyPin();
+            }
+        },
+
+        async verifyPin() {
+            if (this.isLockedOut) {
+                this.pinError = `Too many attempts. Try again in ${this.formatTime(this.remainingTime)}`;
+                return;
+            }
+
+            if (this.pinValue.length !== 4 || this.pinValue.some(v => v === null)) {
+                this.pinError = 'Please enter a 4-digit PIN';
+                return;
+            }
+
+            if (!this.user) {
+                this.pinError = "Access denied!"
+                return;
+            }
+
+            this.isLoading = true;
+            this.pinError = '';
+
+            try {
+                const pin = this.pinValue.join('');
+
+                await new Promise(resolve => setTimeout(resolve, 800));
+
+                const validData = await window.electronAPI.verifyPin(pin, this.user?.uuid);
+
+                if (validData) {
+                    this.user = validData;
+                    this.unLockSession();
+                    await navigateTo(this.redirectUrl);
+                } else {
+                    this.errCount++;
+                    if (this.errCount >= this.MAX_ATTEMPTS) {
+                        this.pinError = `Too many attempts. Try again in ${this.formatTime(this.LOCKOUT_DURATION)}`;
+                    } else {
+                        this.pinError = `Incorrect PIN. ${this.MAX_ATTEMPTS - this.errCount} attempts remaining.`;
+                    }
+                    this.pinValue = [];
+                }
+            } catch (error: any) {
+                this.pinError = error.message || 'Verification failed. Please try again.';
+                this.pinValue = [];
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        handleLogout() {
+            deleteStorage("userDetails");
+            clearNuxtData();
+            navigateTo('/login');
+        }
     }
-};
-
-const handleLogout = () => {
-    deleteStorage("userDetails")
-    clearNuxtData();
-    navigateTo('/login');
-};
-
+});
 </script>
 
 <template>
@@ -174,7 +216,7 @@ const handleLogout = () => {
                 </div>
 
                 <CardTitle class="text-2xl font-inter uppercase mb-1 font-bold text-center">
-                    Welcome, {{ user?.name.split(" ")[0] }}
+                    Welcome, {{ user?.name ? user.name.split(" ")[0] : "Staff" }}
                 </CardTitle>
                 <CardDescription class="text-center font-app text-base text-muted-foreground font-app">
                     Enter your PIN to continue
@@ -206,6 +248,10 @@ const handleLogout = () => {
                         <CircleAlert class="w-4 h-4" />
                         {{ pinError }}
                     </p>
+                    <NuxtLink v-if="pinError === 'Access denied!'" to="/login"
+                        class="text-sm text-primary font-semibold hover:underline my-0 py-0 mb-1 pb-2">
+                        Try Login Again
+                    </NuxtLink>
 
                     <Button type="button"
                         class="w-full max-w-xs h-11 text-sm font-semibold relative overflow-hidden group app-btn"

@@ -12,3 +12,6 @@ export interface ResponseStatus {
 export interface TokenResponse {
   token: string;
 }
+
+export type Theme = "light" | "dark" | "system";
+export type ResolvedTheme = Omit<Theme, "system">;

@@ -7,6 +7,8 @@ import {
   nativeImage,
   shell,
   crashReporter,
+  powerMonitor,
+  nativeTheme,
   type BrowserWindowConstructorOptions,
 } from "electron";
 import path from "node:path";
@@ -18,7 +20,10 @@ import { NotificationService } from "./utils/notification.js";
 import { setupAutoUpdater } from "./utils/updater.js";
 import log from "./utils/logger.js";
 import { ensureExternalFileExists } from "./utils/downloadScanner.js";
-// import { initDB, closeDB } from "./database/app.db.js";
+import { dbManager } from "./database/app.db.js";
+import { syncService } from "./database/sync.db.js";
+import { storeHelper } from "./store/store.js";
+import type { UserDetails, Auth } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,7 +36,7 @@ async function uploadPendingCrash() {
   const crashFile = path.join(
     app.getPath("userData"),
     "ppsmb-crash",
-    "crash-pending.json"
+    "crash-pending.json",
   );
 
   if (!fs.existsSync(crashFile)) return;
@@ -40,7 +45,7 @@ async function uploadPendingCrash() {
     const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
     await axios.post("https://ppsmb.com.ng/api/crash/json", data);
     fs.unlinkSync(crashFile);
-  } catch { }
+  } catch {}
 }
 
 crashReporter.start({
@@ -77,7 +82,12 @@ function sendCrashReport(error: Error, origin: string) {
     };
 
     fs.writeFileSync(crashFile, JSON.stringify(crash, null, 2));
-  } catch { }
+  } catch {}
+}
+
+function handleUserIdle() {
+  if (!win) return;
+  win.webContents.send("idle");
 }
 
 async function createWindow() {
@@ -104,7 +114,7 @@ async function createWindow() {
 
   win.setMenuBarVisibility(false);
   setupAutoUpdater(win);
-  // initDB(app);
+  syncService.start();
 
   const isDev = !app.isPackaged;
 
@@ -228,9 +238,86 @@ function setupTray() {
   });
 }
 
+ipcMain.handle("db:insert", async (_event, tableName: string, doc: any) => {
+  try {
+    return await dbManager.insert(tableName, doc);
+  } catch (error) {
+    log.error(`IPC db:insert error in ${tableName}`, error);
+    return false;
+  }
+});
+
+ipcMain.handle(
+  "db:find",
+  async (
+    _event,
+    tableName: string,
+    query: any,
+    sort: any,
+    limit?: number,
+    skip?: number,
+  ) => {
+    try {
+      return await dbManager.find(tableName, query, sort, limit, skip);
+    } catch (error) {
+      log.error(`IPC db:find error in ${tableName}`, error);
+      throw error;
+    }
+  },
+);
+
+ipcMain.handle("db:findOne", async (_event, tableName: string, query: any) => {
+  try {
+    return await dbManager.findOne(tableName, query);
+  } catch (error) {
+    log.error(`IPC db:findOne error in ${tableName}`, error);
+    throw error;
+  }
+});
+
+ipcMain.handle(
+  "db:update",
+  async (_event, tableName: string, query: any, update: any, options: any) => {
+    try {
+      return await dbManager.update(tableName, query, update, options);
+    } catch (error) {
+      log.error(`IPC db:update error in ${tableName}`, error);
+      throw error;
+    }
+  },
+);
+
+ipcMain.handle(
+  "db:delete",
+  async (_event, tableName: string, query: any, options: any) => {
+    try {
+      return await dbManager.delete(tableName, query, options);
+    } catch (error) {
+      log.error(`IPC db:delete error in ${tableName}`, error);
+      throw error;
+    }
+  },
+);
+
+ipcMain.handle("db:count", async (_event, tableName: string, query: any) => {
+  try {
+    return await dbManager.count(tableName, query);
+  } catch (error) {
+    log.error(`IPC db:count error in ${tableName}`, error);
+    throw error;
+  }
+});
+
 ipcMain.handle("db:get-data", (_event, key) => {
-  // const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
-  // return row ? row.value : null;
+  return storeHelper.get(key);
+});
+
+ipcMain.handle("db:save", (_event, item: any) => {
+  if (item && item.key && item.value !== undefined) {
+    storeHelper.set(item.key, item.value);
+    return;
+  }
+  log.warn("IPC db:save called with unknown format", item);
 });
 
 ipcMain.handle("app:exitOrRestart", (_event, action: "exit" | "restart") => {
@@ -297,12 +384,18 @@ ipcMain.handle(
 
     modal.once("ready-to-show", () => {
       modal.show();
+      modal.focus();
     });
-  }
+  },
 );
 
-ipcMain.handle("db:sync", (_event) => {
-  //sync db data if internet
+ipcMain.handle("db:sync", async (_event) => {
+  try {
+    await syncService.syncNow();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle("open-browser", (_event, url: string) => {
@@ -311,6 +404,65 @@ ipcMain.handle("open-browser", (_event, url: string) => {
 
 ipcMain.handle("notification", (_event, title: string, body: string) => {
   NotificationService.show(title, body);
+});
+
+ipcMain.handle("auth:verify-pin", async (_event, pin: string, uuid: string) => {
+  const res = await dbManager.findOne<(UserDetails & Auth) | null>("users", {
+    uuid,
+  });
+  if (!res) return null;
+  if (res.pin === pin) {
+    const data = {
+      ...res,
+      pin: undefined,
+    };
+    storeHelper.setUser(data);
+    storeHelper.setSession({
+      token: res.token,
+      expiresAt: 60 * 60 * 24,
+    });
+    return data;
+  }
+  return null;
+});
+
+ipcMain.handle("store:getSetting", (_event, key: string) => {
+  return storeHelper.getSetting(key as any);
+});
+
+ipcMain.handle("store:setSetting", (_event, key: string, value: any) => {
+  storeHelper.setSetting(key as any, value);
+  if (key === "theme") {
+    const theme = value as "light" | "dark" | "system";
+    if (theme === "system") {
+      nativeTheme.themeSource = "system";
+    } else {
+      nativeTheme.themeSource = theme;
+    }
+  }
+  return true;
+});
+
+ipcMain.handle("store:get", (_event, key: string) => {
+  return storeHelper.get(key as any);
+});
+
+ipcMain.handle("store:set", (_event, key: string, value: any) => {
+  storeHelper.set(key as any, value);
+  return true;
+});
+
+ipcMain.handle("store:getUser", (_event) => {
+  return storeHelper.getUser();
+});
+
+ipcMain.handle("store:clearUser", (_event) => {
+  storeHelper.clearUser();
+  return true;
+});
+
+ipcMain.handle("theme:getSystemTheme", () => {
+  return nativeTheme.shouldUseDarkColors ? "dark" : "light";
 });
 
 process.on("uncaughtException", (error) => {
@@ -324,15 +476,35 @@ process.on("unhandledRejection", (reason: any) => {
   sendCrashReport(error, "unhandledRejection");
 });
 
+nativeTheme.on("updated", () => {
+  const theme = storeHelper.getSetting("theme");
+  if (theme === "system") {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send(
+        "theme:system-changed",
+        nativeTheme.shouldUseDarkColors ? "dark" : "light",
+      );
+    });
+  }
+});
+
 app.whenReady().then(() => {
   if (BrowserWindow.getAllWindows().length === 0 && win === null)
     createWindow();
   uploadPendingCrash().catch((e) => log.error("Failed to upload crash", e));
+  setInterval(() => {
+    const lockTime = storeHelper.getSetting("lockScreen");
+    const idleTime = powerMonitor.getSystemIdleTime();
+
+    if (idleTime >= lockTime) {
+      handleUserIdle();
+    }
+  }, 60 * 1000);
 });
 
 app.on("before-quit", () => {
   isAppQuitting = true;
-  // closeDB();
+  syncService.stop();
 });
 
 app.on("will-quit", () => {

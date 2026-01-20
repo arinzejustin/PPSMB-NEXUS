@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { navigateTo, useRoute, useUser, useToken } from '#imports';
+import { useTheme } from '~/composables/useTheme';
 import { ArrowDownIcon, Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner } from 'lucide-vue-next'
 import { Button } from "@/components/ui/button";
 import { Progress } from '@/components/ui/progress';
@@ -31,6 +32,7 @@ export default defineComponent({
     const user = useUser();
     const route = useRoute();
     const token = useToken();
+    const { theme } = useTheme();
 
     const refreshToken = async () => {
       try {
@@ -45,7 +47,8 @@ export default defineComponent({
       user,
       route,
       token,
-      refreshToken
+      refreshToken,
+      theme
     }
   },
 
@@ -193,7 +196,7 @@ export default defineComponent({
           console.warn("Search Teacher not implemented");
         } else if (key === 'i') {
           // e.preventDefault();
-          //navigateTo("/pin");
+          navigateTo("/pin");
         }
       }
     },
@@ -206,7 +209,7 @@ export default defineComponent({
       this.refreshToken();
     }, 1000 * 60 * 30);
 
-    let urlTo = "/";
+    let urlTo = "/login";
 
     if (window.electronAPI) {
       window.addEventListener("keydown", this.handleKeydown);
@@ -221,6 +224,12 @@ export default defineComponent({
         window.electronAPI.onUpdateAvailable((v: string) => {
           this.version = v;
           this.status = "available";
+        }),
+
+        window.electronAPI.onIdle(() => {
+          if (this.user.isAuthenticated) {
+            navigateTo("/pin")
+          }
         }),
 
         window.electronAPI.onUpdateProgress((p: number) => {
@@ -273,9 +282,7 @@ export default defineComponent({
           urlTo = '/pin';
           this.user = {
             ...userDetails,
-            authenticated: false,
-            pin: null,
-            hasSetPin: true
+            authenticated: false
           }
         } else {
           setStorage('lastTime', Date.now() - 180 * 24 * 60 * 60 * 1000);
@@ -314,15 +321,14 @@ export default defineComponent({
           <img src="/logo.png" alt="Logo" class="w-full h-full object-contain" />
         </div>
       </div>
-      <div class="absolute bottom-8 text-2xl font-extrabold uppercase text-primary-foreground font-app">
+      <div class="absolute bottom-8 text-2xl font-extrabold uppercase text-white font-app">
         PPSMB File Manager
       </div>
     </div>
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-
-    <Toaster />
+    <Toaster :theme="theme" />
     <div v-if="status !== 'idle'"
       class="fixed bottom-6 right-4 z-50 border border-border rounded-lg shadow-lg hover:shadow-1 p-2 bg-background text-foreground flex items-center gap-2 min-h-28 min-w-72">
       <div v-if="status === 'available'" class="w-full space-y-6 py-1 px-3">
@@ -363,7 +369,7 @@ export default defineComponent({
       <ContextMenuTrigger as-child>
         <div ref="menuTrigger" class="fixed size-0" id="menuTrigger" />
       </ContextMenuTrigger>
-      <ContextMenuContent class="w-64 font-app">
+      <ContextMenuContent class="w-64 font-app shadow-2xl">
         <ContextMenuItem @click="navigateHistory('back')" inset :disabled="!menuOptions.back">
           Back
           <ContextMenuShortcut class="text-[11px]">Ctrl+[</ContextMenuShortcut>

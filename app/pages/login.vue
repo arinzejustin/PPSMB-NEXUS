@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
-import { useHead, useRuntimeConfig, navigateTo, useUser, definePageMeta, showToast, errorParser } from '#imports';
+import { useHead, useRuntimeConfig, navigateTo, useUser, useToken, definePageMeta, showToast, errorParser } from '#imports';
 import { CardContent, CardDescription, CardFooter, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,8 +21,10 @@ const PIN_LENGTH = 4;
 definePageMeta({
     layout: "auth"
 });
+
 const env = useRuntimeConfig();
 const user = useUser();
+const token = useToken();
 const isDesktop = computed(() => env.public.appType === 'desktop');
 
 useHead({
@@ -174,7 +176,12 @@ const submitPin = async (): Promise<void> => {
         const data = await $fetch<ResponseStatus>("/api/auth/set-pin", {
             method: "POST",
             body: {
-                pin
+                pin,
+                uuid: loginDetails.value?.user.uuid || ""
+            },
+            headers: {
+                authorization: `Bearer ${loginDetails.value?.token}`,
+                "x-auth-token": token.value || ""
             }
         })
 
@@ -182,10 +189,6 @@ const submitPin = async (): Promise<void> => {
             pinError.value = data.message;
             return;
         }
-
-        hasSetPin.value = true;
-        showPinModal.value = false;
-        resetPinModal();
 
         if (!loginDetails.value) {
             throw new Error("Failed to authenicate.")
@@ -199,13 +202,17 @@ const submitPin = async (): Promise<void> => {
         };
 
         if (window.electronAPI) {
-            setStorage("userDetails", loginDetails.value.user);
-            window.electronAPI.saveData({
+            storages(loginDetails.value.user);
+            const payload = {
                 ...user.value,
-                pin: loginDetails.value.pin || null
-            })
-        }
+                pin: pin
+            };
 
+            window.electronAPI.dbInsert("users", JSON.parse(JSON.stringify(payload)));
+        }
+        hasSetPin.value = true;
+        showPinModal.value = false;
+        resetPinModal();
         navigateTo("/")
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to set PIN. Please try again.';
@@ -214,6 +221,12 @@ const submitPin = async (): Promise<void> => {
         isPinLoading.value = false;
     }
 };
+
+const storages = (data: any) => {
+    setStorage("userDetails", data);
+    setStorage("hasLoggedIn", true);
+    setStorage('lastTime', Date.now());
+}
 
 const handleSubmit = async (): Promise<void> => {
     formSubmitted.value = true;
@@ -233,6 +246,9 @@ const handleSubmit = async (): Promise<void> => {
                 password: form.password,
                 rememberMe: form.rememberMe,
                 appType: isDesktop.value ? 'desktop' : 'web'
+            },
+            headers: {
+                "x-auth-token": token.value || ""
             }
         });
 
@@ -252,11 +268,13 @@ const handleSubmit = async (): Promise<void> => {
             };
 
             if (window.electronAPI) {
-                setStorage("userDetails", data.user)
-                window.electronAPI.saveData({
+                storages(data.user)
+                const payload = {
                     ...user.value,
                     pin: data.pin || null
-                })
+                };
+
+                window.electronAPI.dbInsert("users", JSON.parse(JSON.stringify(payload)));
             }
             await navigateTo('/');
         } else {

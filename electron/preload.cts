@@ -12,10 +12,34 @@ function on<T = unknown>(
 }
 
 const appBridge: IElectronAPI = {
-  // Database
+  dbInsert: (tableName, doc) => ipcRenderer.invoke("db:insert", tableName, doc),
+  dbFind: (tableName, query, sort, limit, skip) =>
+    ipcRenderer.invoke("db:find", tableName, query, sort, limit, skip),
+  dbFindOne: (tableName, query) =>
+    ipcRenderer.invoke("db:findOne", tableName, query),
+  dbUpdate: (tableName, query, update, options) =>
+    ipcRenderer.invoke("db:update", tableName, query, update, options),
+  dbDelete: (tableName, query, options) =>
+    ipcRenderer.invoke("db:delete", tableName, query, options),
+  dbCount: (tableName, query) =>
+    ipcRenderer.invoke("db:count", tableName, query),
+  syncRecords: () => ipcRenderer.invoke("db:sync"),
+
+  //idle
+  onIdle: (cb) => on("idle", cb),
+
+  // from store
+  getSetting: (key: string) => ipcRenderer.invoke("store:getSetting", key),
+  setSetting: (key: string, value: any) =>
+    ipcRenderer.invoke("store:setSetting", key, value),
+  get: (key: string) => ipcRenderer.invoke("store:get", key),
+  set: (key: string, value: any) => ipcRenderer.invoke("store:set", key, value),
+  getUser: () => ipcRenderer.invoke("store:getUser"),
+  clearUser: () => ipcRenderer.invoke("store:clearUser"),
+
+  // Legacy/Helpers
   saveData: (item) => ipcRenderer.invoke("db:save", item),
   getData: (key) => ipcRenderer.invoke("db:get-data", key),
-  syncRecords: () => ipcRenderer.invoke("db:sync"),
 
   // Authentication
   verifyPin: (pin: string, uuid: string) =>
@@ -49,6 +73,13 @@ const appBridge: IElectronAPI = {
   // Context menu
   openContextMenu: (cb) =>
     on<Record<string, boolean | number | string>>("open-context-menu", cb),
+  getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
+  onSystemThemeChange: (callback: (theme: string) => void) => {
+    ipcRenderer.on("theme:system-changed", (_event, theme) => callback(theme));
+    return () => {
+      ipcRenderer.removeAllListeners("theme:system-changed");
+    };
+  },
 };
 
 try {

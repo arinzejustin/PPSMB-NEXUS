@@ -6,14 +6,6 @@ const MODAL_SIZE = {
 };
 
 export const openUrl = async (url: string, title?: string) => {
-  let iconOrigin: string | undefined;
-
-  try {
-    iconOrigin = new URL(url, window.location.origin).origin;
-  } catch {
-    iconOrigin = undefined;
-  }
-
   if (window.electronAPI) {
     await window.electronAPI.openModal(url, {
       width: MODAL_SIZE.width,
@@ -21,7 +13,6 @@ export const openUrl = async (url: string, title?: string) => {
       minWidth: MODAL_SIZE.minWidth,
       minHeight: MODAL_SIZE.minHeight,
       title: title ?? "",
-      icon: iconOrigin ? `${iconOrigin}/favicon.ico` : undefined,
     });
     return;
   }

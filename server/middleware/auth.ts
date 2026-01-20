@@ -1,61 +1,64 @@
 import jwt from "jsonwebtoken";
 
 /**
- * Global server middleware to validate session tokens.
- * It checks for a valid JWT in cookies or Authorization header.
+ * API Authentication Middleware
+ * Ensures that protected API requests are made by a logged-in user.
+ * It ignores non-API routes and public API endpoints.
  */
 export default defineEventHandler((event) => {
-  const config = useRuntimeConfig();
   const path = event.path;
 
-  // 1. Define public paths that don't require authentication
-  const publicPaths = ["/login", "/api/auth/login", "/api/token"];
-  
-  // Check if current path is public
-  const isPublic = publicPaths.some((p) => path.startsWith(p));
-  if (isPublic) {
+  if (!path.startsWith("/api/")) {
     return;
   }
 
-  // 2. Extract token from cookie or Authorization header
-  const token = getCookie(event, "auth_token") || 
-                getHeader(event, "Authorization")?.replace("Bearer ", "");
-
-  // 3. Handle missing token
-  if (!token) {
-    return handleUnauthorized(event, "Authentication required: No session token found.");
+  const publicApiPaths = ["/api/token", "/api/auth/login"];
+  if (publicApiPaths.some((p) => path.startsWith(p))) {
+    return;
   }
 
-  // 4. Validate the token
-  try {
-    const secret = config.keySecret as string;
-    jwt.verify(token, secret);
-  } catch (error: any) {
-    let message = "Invalid or expired session token.";
-    if (error.name === "TokenExpiredError") {
-      message = "Your session has expired. Please log in again.";
-    }
-    
-    return handleUnauthorized(event, message);
-  }
-});
+  const config = useRuntimeConfig();
 
-/**
- * Helper to handle unauthorized requests based on request type (API vs Page).
- */
-function handleUnauthorized(event: any, message: string) {
-  const isApiRequest = event.path.startsWith("/api/");
+  const token =
+    getCookie(event, "access_token") ||
+    getHeader(event, "Authorization")?.replace("Bearer ", "");
+  const contextId = getCookie(event, "x_cid");
 
-  if (isApiRequest) {
+  if (!token || !contextId) {
     throw createError({
       statusCode: 401,
       statusMessage: "Unauthorized",
       data: {
-        success: false,
-        message: message,
+        status: false,
+        message: "Invalid or incomplete session. Please login again.",
       },
     });
-  } else {
-    return sendRedirect(event, "/login");
   }
-}
+
+  try {
+    const secret = config.keySecret;
+
+    const decoded: any = jwt.verify(token, secret, {
+      issuer: "AXIOLOT HUB™",
+    });
+
+    if (!decoded.user || !decoded.user.uuid) {
+      throw new Error("Invalid session structure.");
+    }
+
+    if (decoded.cid !== contextId) {
+      throw new Error("Session mismatch detection.");
+    }
+
+    event.context.user = decoded.user;
+  } catch (error: any) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: "Unauthorized",
+      data: {
+        status: false,
+        message: error.message || "Invalid or expired session token.",
+      },
+    });
+  }
+});

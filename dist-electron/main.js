@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, crashReporter, } from "electron";
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, crashReporter, powerMonitor, nativeTheme, } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
@@ -8,7 +8,9 @@ import { NotificationService } from "./utils/notification.js";
 import { setupAutoUpdater } from "./utils/updater.js";
 import log from "./utils/logger.js";
 import { ensureExternalFileExists } from "./utils/downloadScanner.js";
-// import { initDB, closeDB } from "./database/app.db.js";
+import { dbManager } from "./database/app.db.js";
+import { syncService } from "./database/sync.db.js";
+import { storeHelper } from "./store/store.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 let win = null;
@@ -57,6 +59,11 @@ function sendCrashReport(error, origin) {
     }
     catch { }
 }
+function handleUserIdle() {
+    if (!win)
+        return;
+    win.webContents.send("idle");
+}
 async function createWindow() {
     if (win) {
         if (win.isMinimized())
@@ -80,7 +87,7 @@ async function createWindow() {
     });
     win.setMenuBarVisibility(false);
     setupAutoUpdater(win);
-    // initDB(app);
+    syncService.start();
     const isDev = !app.isPackaged;
     if (isDev) {
         win.loadURL("http://localhost:3000");
@@ -189,9 +196,69 @@ function setupTray() {
         }
     });
 }
+ipcMain.handle("db:insert", async (_event, tableName, doc) => {
+    try {
+        return await dbManager.insert(tableName, doc);
+    }
+    catch (error) {
+        log.error(`IPC db:insert error in ${tableName}`, error);
+        return false;
+    }
+});
+ipcMain.handle("db:find", async (_event, tableName, query, sort, limit, skip) => {
+    try {
+        return await dbManager.find(tableName, query, sort, limit, skip);
+    }
+    catch (error) {
+        log.error(`IPC db:find error in ${tableName}`, error);
+        throw error;
+    }
+});
+ipcMain.handle("db:findOne", async (_event, tableName, query) => {
+    try {
+        return await dbManager.findOne(tableName, query);
+    }
+    catch (error) {
+        log.error(`IPC db:findOne error in ${tableName}`, error);
+        throw error;
+    }
+});
+ipcMain.handle("db:update", async (_event, tableName, query, update, options) => {
+    try {
+        return await dbManager.update(tableName, query, update, options);
+    }
+    catch (error) {
+        log.error(`IPC db:update error in ${tableName}`, error);
+        throw error;
+    }
+});
+ipcMain.handle("db:delete", async (_event, tableName, query, options) => {
+    try {
+        return await dbManager.delete(tableName, query, options);
+    }
+    catch (error) {
+        log.error(`IPC db:delete error in ${tableName}`, error);
+        throw error;
+    }
+});
+ipcMain.handle("db:count", async (_event, tableName, query) => {
+    try {
+        return await dbManager.count(tableName, query);
+    }
+    catch (error) {
+        log.error(`IPC db:count error in ${tableName}`, error);
+        throw error;
+    }
+});
 ipcMain.handle("db:get-data", (_event, key) => {
-    // const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
-    // return row ? row.value : null;
+    return storeHelper.get(key);
+});
+ipcMain.handle("db:save", (_event, item) => {
+    if (item && item.key && item.value !== undefined) {
+        storeHelper.set(item.key, item.value);
+        return;
+    }
+    log.warn("IPC db:save called with unknown format", item);
 });
 ipcMain.handle("app:exitOrRestart", (_event, action) => {
     if (action === "exit") {
@@ -250,16 +317,76 @@ ipcMain.handle("open-modal", (_event, routeUrl, options) => {
     }
     modal.once("ready-to-show", () => {
         modal.show();
+        modal.focus();
     });
 });
-ipcMain.handle("db:sync", (_event) => {
-    //sync db data if internet
+ipcMain.handle("db:sync", async (_event) => {
+    try {
+        await syncService.syncNow();
+        return { success: true };
+    }
+    catch (error) {
+        return { success: false, error: error.message };
+    }
 });
 ipcMain.handle("open-browser", (_event, url) => {
     shell.openExternal(url);
 });
 ipcMain.handle("notification", (_event, title, body) => {
     NotificationService.show(title, body);
+});
+ipcMain.handle("auth:verify-pin", async (_event, pin, uuid) => {
+    const res = await dbManager.findOne("users", {
+        uuid,
+    });
+    if (!res)
+        return null;
+    if (res.pin === pin) {
+        const data = {
+            ...res,
+            pin: undefined,
+        };
+        storeHelper.setUser(data);
+        storeHelper.setSession({
+            token: res.token,
+            expiresAt: 60 * 60 * 24,
+        });
+        return data;
+    }
+    return null;
+});
+ipcMain.handle("store:getSetting", (_event, key) => {
+    return storeHelper.getSetting(key);
+});
+ipcMain.handle("store:setSetting", (_event, key, value) => {
+    storeHelper.setSetting(key, value);
+    if (key === "theme") {
+        const theme = value;
+        if (theme === "system") {
+            nativeTheme.themeSource = "system";
+        }
+        else {
+            nativeTheme.themeSource = theme;
+        }
+    }
+    return true;
+});
+ipcMain.handle("store:get", (_event, key) => {
+    return storeHelper.get(key);
+});
+ipcMain.handle("store:set", (_event, key, value) => {
+    storeHelper.set(key, value);
+    return true;
+});
+ipcMain.handle("store:getUser", (_event) => {
+    return storeHelper.getUser();
+});
+ipcMain.handle("store:clearUser", (_event) => {
+    storeHelper.clearUser();
+    return true;
+});
+ipcMain.handle("theme:getSystemTheme", () => {
+    return nativeTheme.shouldUseDarkColors ? "dark" : "light";
 });
 process.on("uncaughtException", (error) => {
     log.error("Uncaught Exception", error);
@@ -270,14 +397,29 @@ process.on("unhandledRejection", (reason) => {
     log.error("Unhandled Promise Rejection", error);
     sendCrashReport(error, "unhandledRejection");
 });
+nativeTheme.on("updated", () => {
+    const theme = storeHelper.getSetting("theme");
+    if (theme === "system") {
+        BrowserWindow.getAllWindows().forEach((win) => {
+            win.webContents.send("theme:system-changed", nativeTheme.shouldUseDarkColors ? "dark" : "light");
+        });
+    }
+});
 app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0 && win === null)
         createWindow();
     uploadPendingCrash().catch((e) => log.error("Failed to upload crash", e));
+    setInterval(() => {
+        const lockTime = storeHelper.getSetting("lockScreen");
+        const idleTime = powerMonitor.getSystemIdleTime();
+        if (idleTime >= lockTime) {
+            handleUserIdle();
+        }
+    }, 60 * 1000);
 });
 app.on("before-quit", () => {
     isAppQuitting = true;
-    // closeDB();
+    syncService.stop();
 });
 app.on("will-quit", () => {
     // closeDB();

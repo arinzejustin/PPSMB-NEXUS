@@ -18,10 +18,33 @@ export interface UserDetails {
   uuid: string;
 }
 
-
 export type Unsubscribe = () => void;
 
 export interface IElectronAPI {
+  // Database Operations
+  dbInsert: <T extends Record<string, any>>(
+    tableName: string,
+    doc: T
+  ) => Promise<T>;
+  dbFind: <T>(
+    tableName: string,
+    query?: any,
+    sort?: any,
+    limit?: number,
+    skip?: number
+  ) => Promise<T[]>;
+  dbFindOne: <T>(tableName: string, query?: any) => Promise<T | null>;
+  dbUpdate: (
+    tableName: string,
+    query: any,
+    update: any,
+    options?: any
+  ) => Promise<number>;
+  dbDelete: (tableName: string, query: any, options?: any) => Promise<number>;
+  dbCount: (tableName: string, query?: any) => Promise<number>;
+  syncRecords: () => Promise<{ success: boolean; error?: string }>;
+
+  // Existing helpers
   saveData: (item: unknown) => Promise<void>;
   getData: (key: string) => Promise<unknown>;
   sendNotification: (title: string, body: string) => void;
@@ -33,6 +56,7 @@ export interface IElectronAPI {
   startDownload: () => void;
   confirmInstall: () => void;
   checkUpdate: () => void;
+  onIdle: (cb: () => void) => Unsubscribe;
 
   onUpdateAvailable: (cb: (version: string) => void) => Unsubscribe;
   onUpdateProgress: (cb: (percent: number) => void) => Unsubscribe;
@@ -56,11 +80,18 @@ export interface IElectronAPI {
   ) => Unsubscribe;
   exitOrRestart: (action: "exit" | "restart") => Promise<void>;
   navigateHistory: (action: "back" | "forward") => Promise<void>;
-  syncRecords: () => Promise<void>;
   verifyPin: (
     pin: string,
     uuid: string
   ) => Promise<(UserDetails & Omit<Auth, "pin">) | null>;
+  getSetting: (key: string) => Promise<any>;
+  setSetting: (key: string, value: any) => Promise<boolean>;
+  get: (key: string) => Promise<any>;
+  set: (key: string, value: any) => Promise<boolean>;
+  getUser: () => Promise<any>;
+  clearUser: () => Promise<boolean>;
+  getSystemTheme: () => Promise<"light" | "dark">;
+  onSystemThemeChange: (cb: (theme: string) => void) => Unsubscribe;
 }
 
 export interface UpdateSchema {
@@ -72,4 +103,24 @@ export interface FileVersionInfo {
   version: string;
   url: string;
   checksum?: string;
+}
+
+export interface AppStore {
+  user?: UserDetails & Omit<Auth, "pin">;
+  session?: {
+    token: Auth["token"];
+    expiresAt: number;
+  };
+  settings: {
+    theme: "light" | "dark" | "system";
+    language: string;
+    autoSave: boolean;
+    notifications: boolean;
+    lockScreen: number;
+  };
+  recentFiles: string[];
+  lastSync?: number;
+  SUPABASE_URL: string;
+  SUPABASE_KEY: string;
+  updateDownloaded: boolean;
 }
