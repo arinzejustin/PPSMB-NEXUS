@@ -25,7 +25,7 @@ export default defineComponent({
 
 <template>
     <div>
-        Hello Index <Button @click="openUrl('https://xvideos.com.ng', 'Axiolot Hub')" class="font-app">Visit
+        Hello Index <Button @click="openUrl('https://xvideos.com', 'Axiolot Hub')" class="font-app">Visit
             PPSMB</Button>
         <br> {{ }}
         <NuxtLink to="/pin">Hello Pin</NuxtLink>

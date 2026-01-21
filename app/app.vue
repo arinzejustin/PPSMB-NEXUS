@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { navigateTo, useRoute, useUser, useToken } from '#imports';
+import { navigateTo, useRoute, useUser, useToken, showToast } from '#imports';
 import { useTheme } from '~/composables/useTheme';
 import { ArrowDownIcon, Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner } from 'lucide-vue-next'
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,10 @@ export default defineComponent({
   methods: {
     openBrowser,
     navigateTo,
+    copyVersion(version: string) {
+      navigator.clipboard.writeText(version);
+      showToast("Version copied to clipboard", "success")
+    },
     download() {
       window.electronAPI?.startDownload();
     },
@@ -293,6 +297,14 @@ export default defineComponent({
       navigateTo(urlTo)
       await new Promise((resolve) => setTimeout(resolve, 4000));
       return this.loading = false;
+    } else {
+      const theme = getStorage<string>("theme") || "system";
+      if (theme === "system") {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.className = isDark ? 'dark' : 'light';
+      } else {
+        document.documentElement.className = theme;
+      }
     }
 
     await new Promise((resolve) => setTimeout(resolve, 4000));
@@ -440,7 +452,7 @@ export default defineComponent({
               About Developers
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem inset v-if="menuOptions.copyVersion">
+            <ContextMenuItem @click="copyVersion(String(menuOptions.__version))" inset v-if="menuOptions.copyVersion">
               Copy Version
             </ContextMenuItem>
           </ContextMenuSubContent>

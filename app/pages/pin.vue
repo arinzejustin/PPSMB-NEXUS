@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, clearNuxtData } from '#imports';
+import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, clearNuxtData, logOut } from '#imports';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -195,9 +195,9 @@ export default defineComponent({
             }
         },
 
-        handleLogout() {
+        async handleLogout() {
+            await logOut();
             deleteStorage("userDetails");
-            clearNuxtData();
             navigateTo('/login');
         }
     }

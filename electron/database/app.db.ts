@@ -64,14 +64,10 @@ class DatabaseManager {
       else if (doc.username) query = { username: doc.username };
     }
 
-    console.log(query);
-
     const existing =
       Object.keys(query).length > 0
         ? await this.findOne<T>(tableName, query)
         : null;
-
-    console.log(existing);
 
     if (existing) {
       const { _id, ...updateData } = doc;
@@ -127,7 +123,6 @@ class DatabaseManager {
     query: any = {},
   ): Promise<T | null> {
     const store = this.getTable(tableName);
-    console.log(query, tableName);
     return new Promise((resolve, reject) => {
       store.findOne(query, (err, doc) => {
         if (err) reject(err);

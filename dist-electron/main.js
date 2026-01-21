@@ -149,9 +149,9 @@ async function createWindow() {
     const scanner = await ensureExternalFileExists(app);
     if (scanner) {
         if (scanner.status)
-            NotificationService.show(scanner.tittle, scanner.message);
+            NotificationService.show(scanner.title, scanner.message);
         else
-            NotificationService.show(scanner.tittle, scanner.message);
+            NotificationService.show(scanner.title, scanner.message);
     }
 }
 function setupTray() {
@@ -362,12 +362,7 @@ ipcMain.handle("store:setSetting", (_event, key, value) => {
     storeHelper.setSetting(key, value);
     if (key === "theme") {
         const theme = value;
-        if (theme === "system") {
-            nativeTheme.themeSource = "system";
-        }
-        else {
-            nativeTheme.themeSource = theme;
-        }
+        nativeTheme.themeSource = theme;
     }
     return true;
 });

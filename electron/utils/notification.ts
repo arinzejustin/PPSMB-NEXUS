@@ -1,6 +1,7 @@
 import { Notification, type NotificationConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { storeHelper } from "../store/store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,14 @@ export class NotificationService {
       console.error("System notifications are not supported on this platform.");
       return;
     }
+
+    console.log("hello")
+
+    if (!storeHelper.getSetting("notifications")) {
+      return;
+    }
+
+    console.log("idiot")
 
     const options: NotificationConstructorOptions = {
       title,

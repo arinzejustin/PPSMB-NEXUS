@@ -56,11 +56,9 @@ class DatabaseManager {
             else if (doc.username)
                 query = { username: doc.username };
         }
-        console.log(query);
         const existing = Object.keys(query).length > 0
             ? await this.findOne(tableName, query)
             : null;
-        console.log(existing);
         if (existing) {
             const { _id, ...updateData } = doc;
             await this.update(tableName, query, { $set: updateData }, { multi: false });
@@ -102,7 +100,6 @@ class DatabaseManager {
      */
     async findOne(tableName, query = {}) {
         const store = this.getTable(tableName);
-        console.log(query, tableName);
         return new Promise((resolve, reject) => {
             store.findOne(query, (err, doc) => {
                 if (err)

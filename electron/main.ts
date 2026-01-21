@@ -187,8 +187,8 @@ async function createWindow() {
 
   if (scanner) {
     if (scanner.status)
-      NotificationService.show(scanner.tittle, scanner.message);
-    else NotificationService.show(scanner.tittle, scanner.message);
+      NotificationService.show(scanner.title, scanner.message);
+    else NotificationService.show(scanner.title, scanner.message);
   }
 }
 
@@ -434,11 +434,7 @@ ipcMain.handle("store:setSetting", (_event, key: string, value: any) => {
   storeHelper.setSetting(key as any, value);
   if (key === "theme") {
     const theme = value as "light" | "dark" | "system";
-    if (theme === "system") {
-      nativeTheme.themeSource = "system";
-    } else {
-      nativeTheme.themeSource = theme;
-    }
+    nativeTheme.themeSource = theme;
   }
   return true;
 });

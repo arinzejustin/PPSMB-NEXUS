@@ -10,7 +10,7 @@ async function getLatestVersion(): Promise<FileVersionInfo> {
   try {
     const response = await axios.get<FileVersionInfo>(
       "https://axiolot.com.ng/files/scanner-version.json",
-      { timeout: 10000 }
+      { timeout: 10000 },
     );
     return response.data;
   } catch (error) {
@@ -19,7 +19,7 @@ async function getLatestVersion(): Promise<FileVersionInfo> {
 }
 
 async function getCurrentLocalVersion(
-  filePath: string
+  filePath: string,
 ): Promise<string | null> {
   try {
     const versionFilePath = `${filePath}.version`;
@@ -34,7 +34,7 @@ async function getCurrentLocalVersion(
 
 async function saveVersionInfo(
   filePath: string,
-  version: string
+  version: string,
 ): Promise<void> {
   const versionFilePath = `${filePath}.version`;
   fs.writeFileSync(versionFilePath, version, "utf8");
@@ -55,7 +55,7 @@ async function downloadFile(
   url: string,
   targetFile: string,
   version: string,
-  expectedChecksum?: string
+  expectedChecksum?: string,
 ): Promise<void> {
   const response = await axios({
     url,
@@ -81,7 +81,7 @@ async function downloadFile(
     if (actualChecksum !== expectedChecksum) {
       fs.unlinkSync(tempFile);
       throw new Error(
-        `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}`
+        `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}`,
       );
     }
   }
@@ -95,8 +95,8 @@ async function downloadFile(
 }
 
 export async function ensureExternalFileExists(
-  app: Electron.App
-): Promise<{ tittle: string; message: string; status: boolean } | void> {
+  app: Electron.App,
+): Promise<{ title: string; message: string; status: boolean } | void> {
   try {
     const appPath = app.getPath("userData");
     const targetFile = path.join(appPath, "scanner.exe");
@@ -116,13 +116,15 @@ export async function ensureExternalFileExists(
       latestVersionInfo.url,
       targetFile,
       latestVersionInfo.version,
-      latestVersionInfo.checksum
+      latestVersionInfo.checksum,
     );
 
     retryCount = 0;
     return {
-      tittle: "Scanner Updated",
-      message: `Scanner.exe version ${latestVersionInfo.version} is ready.`,
+      title: fileExists ? "Scanner Updated" : "Scanner Downloaded",
+      message: fileExists
+        ? `Scanner version ${latestVersionInfo.version} is ready.`
+        : `Scanner `,
       status: true,
     };
   } catch (error) {
@@ -134,7 +136,7 @@ export async function ensureExternalFileExists(
     } else {
       retryCount = 0;
       return {
-        tittle: "File Download Error",
+        title: "File Download Error",
         message: `Failed to download scanner.exe, app might not work normally.`,
         status: false,
       };

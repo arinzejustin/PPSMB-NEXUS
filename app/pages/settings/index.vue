@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue';
-import { navigateTo, showToast } from "#imports"
+import { navigateTo, showToast, definePageMeta } from "#imports"
 import {
     Card,
     CardContent,
@@ -27,6 +27,10 @@ import { logOut } from '@/composables/logout';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { deleteStorage } from '@/lib/storage';
 import { User, Shield, Palette, LogOut, Lock, Bell, Save, Monitor, Clock } from 'lucide-vue-next';
+
+definePageMeta({
+    middleware: "user-validate"
+})
 
 const user = useUser();
 const { lockSession } = useLockWindow();
@@ -152,7 +156,8 @@ watch(() => settings.lockScreen, (val) => updateSetting('lockScreen', Number(val
                                 Automatically save changes as you work.
                             </p>
                         </div>
-                        <Checkbox :checked="settings.autoSave" @update:checked="(v: any) => settings.autoSave = v" />
+                        <Checkbox :modelValue="settings.autoSave"
+                            @update:modelValue="(v: any) => settings.autoSave = v" />
                     </div>
                     <div class="flex items-center justify-between space-x-2">
                         <div class="space-y-0.5">
@@ -164,8 +169,8 @@ watch(() => settings.lockScreen, (val) => updateSetting('lockScreen', Number(val
                                 Enable system notifications for events.
                             </p>
                         </div>
-                        <Checkbox :checked="settings.notifications"
-                            @update:checked="(v: any) => settings.notifications = v" />
+                        <Checkbox :modelValue="settings.notifications"
+                            @update:modelValue="(v: any) => settings.notifications = v" />
                     </div>
                     <div class="space-y-3">
                         <div class="space-y-0.5">

@@ -497,7 +497,7 @@ watch(hasSetPin, (value) => {
                         </div>
                     </div>
 
-                    <PinInput v-if="pinStep === 'set'" :key="'set-pin'" v-model="pinValue" placeholder="0" type="number"
+                    <PinInput v-if="pinStep === 'set'" :key="'set-pin'" v-model="pinValue" placeholder="●" type="number"
                         :length="4" @complete="handlePinComplete" class="">
                         <PinInputGroup class="gap-3">
                             <PinInputSlot v-for="(slot, index) in 4" :key="index" :index="index"
@@ -506,7 +506,7 @@ watch(hasSetPin, (value) => {
                     </PinInput>
 
                     <PinInput v-if="pinStep === 'confirm'" :key="'confirm-pin'" v-model="confirmPinValue"
-                        placeholder="0" type="number" :length="4" @complete="handlePinComplete">
+                        placeholder="●" type="number" :length="4" @complete="handlePinComplete">
                         <PinInputGroup class="gap-3">
                             <PinInputSlot v-for="(slot, index) in 4" :key="index" :index="index"
                                 class="w-12 h-14 text-base font-semibold border-2 rounded-md bg-background/50 transition-all"

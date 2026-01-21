@@ -26,7 +26,7 @@ export const validateStaffCredentials = async (
   if (error || !user) {
     return {
       status: false,
-      message: "Invalid credentials.",
+      message: error?.message || "Invalid credentials.",
     };
   }
 
