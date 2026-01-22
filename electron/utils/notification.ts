@@ -36,12 +36,10 @@ export class NotificationService {
 
     const notification = new Notification(options);
 
-    console.log("Notifications supported:", Notification.isSupported());
-
     notification.on("click", () => {
       console.log(`User clicked notification: ${title}`);
     });
 
     notification.show();
-  } 
+  }
 }

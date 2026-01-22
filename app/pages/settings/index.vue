@@ -117,7 +117,7 @@ const handlePinComplete = (value: number[]): void => {
 
 async function goBack() {
     const path = popBack(route.fullPath);
-    if (path) await router.push(path);
+    if (path && !path.includes("settings")) await router.push(path); else await router.push("/");
 }
 
 const isValidPinArray = (pin: number[]): boolean => {
@@ -288,6 +288,9 @@ const changePin = async (): Promise<void> => {
 
 onMounted(() => {
     loadSettings();
+    const page = route.query.active as string;
+    if (page)
+        activeSection.value = page;
 });
 
 watch(() => settings.autoSave, (val) => updateSetting('autoSave', val));

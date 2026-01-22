@@ -15,3 +15,12 @@ export interface TokenResponse {
 
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = Omit<Theme, "system">;
+
+export interface NavItem {
+  id: string;
+  label: string;
+  icon: any;
+  to?: string;
+  children?: NavItem[];
+  badge?: number | string;
+}

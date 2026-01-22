@@ -49,7 +49,7 @@
     --muted-foreground: oklch(0.7 0.02 165);
     --popover: oklch(0.14 0.02 165);
     --popover-foreground: oklch(0.985 0 0);
-    --card: oklch(0.14 0.02 165);
+    --card: oklch(0.12 0.02 165);
     --card-foreground: oklch(0.985 0 0);
     --border: oklch(1 0 0 / 12%);
     --input: oklch(1 0 0 / 15%);
@@ -125,7 +125,7 @@
 
 @layer components {
   .app-btn {
-    @apply bg-primary! text-primary-foreground rounded-lg! px-6! py-5!;
+    @apply bg-primary! text-white! rounded-lg! px-6! py-5!;
   }
 }
 
