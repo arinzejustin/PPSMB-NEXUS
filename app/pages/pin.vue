@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, clearNuxtData, logOut } from '#imports';
+import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, logOut } from '#imports';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,7 +92,6 @@ export default defineComponent({
         if (!window.electronAPI || !this.user) {
             return navigateTo('/login');
         }
-        this.lockSession();
 
         const storedLockout = getStorage<string | null>('pinLockoutEnd');
         if (storedLockout) {

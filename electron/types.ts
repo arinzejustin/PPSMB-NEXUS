@@ -24,21 +24,21 @@ export interface IElectronAPI {
   // Database Operations
   dbInsert: <T extends Record<string, any>>(
     tableName: string,
-    doc: T
+    doc: T,
   ) => Promise<T>;
   dbFind: <T>(
     tableName: string,
     query?: any,
     sort?: any,
     limit?: number,
-    skip?: number
+    skip?: number,
   ) => Promise<T[]>;
   dbFindOne: <T>(tableName: string, query?: any) => Promise<T | null>;
   dbUpdate: (
     tableName: string,
     query: any,
     update: any,
-    options?: any
+    options?: any,
   ) => Promise<number>;
   dbDelete: (tableName: string, query: any, options?: any) => Promise<number>;
   dbCount: (tableName: string, query?: any) => Promise<number>;
@@ -70,19 +70,19 @@ export interface IElectronAPI {
 
   openModal: (
     routeUrl: string,
-    options?: BrowserWindowConstructorOptions
+    options?: BrowserWindowConstructorOptions,
   ) => Promise<void>;
 
   openBrowser: (url: string) => Promise<void>;
 
   openContextMenu: (
-    cb: (options: Record<string, boolean | number | string>) => void
+    cb: (options: Record<string, boolean | number | string>) => void,
   ) => Unsubscribe;
   exitOrRestart: (action: "exit" | "restart") => Promise<void>;
   navigateHistory: (action: "back" | "forward") => Promise<void>;
   verifyPin: (
     pin: string,
-    uuid: string
+    uuid: string,
   ) => Promise<(UserDetails & Omit<Auth, "pin">) | null>;
   getSetting: (key: string) => Promise<any>;
   setSetting: (key: string, value: any) => Promise<boolean>;
@@ -117,6 +117,13 @@ export interface AppStore {
     autoSave: boolean;
     notifications: boolean;
     lockScreen: number;
+    soundEffects: boolean;
+    emailNotifications: boolean;
+    autoUpdate: boolean;
+    fontSize: string;
+    compactMode: boolean;
+    showOnlineStatus: boolean;
+    dataSync: boolean;
   };
   recentFiles: string[];
   lastSync?: number;

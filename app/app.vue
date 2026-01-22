@@ -1,7 +1,8 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { navigateTo, useRoute, useUser, useToken, showToast } from '#imports';
-import { useTheme } from '~/composables/useTheme';
+import { useTheme } from '@/composables/useTheme';
+import { useLockWindow } from '@/composables/useLockWindow';
 import { ArrowDownIcon, Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner } from 'lucide-vue-next'
 import { Button } from "@/components/ui/button";
 import { Progress } from '@/components/ui/progress';
@@ -33,6 +34,7 @@ export default defineComponent({
     const route = useRoute();
     const token = useToken();
     const { theme } = useTheme();
+    const { lockSession } = useLockWindow()
 
     const refreshToken = async () => {
       try {
@@ -48,7 +50,8 @@ export default defineComponent({
       route,
       token,
       refreshToken,
-      theme
+      theme,
+      lockSession
     }
   },
 
@@ -231,9 +234,7 @@ export default defineComponent({
         }),
 
         window.electronAPI.onIdle(() => {
-          if (this.user.isAuthenticated) {
-            navigateTo("/pin")
-          }
+          this.lockSession()
         }),
 
         window.electronAPI.onUpdateProgress((p: number) => {

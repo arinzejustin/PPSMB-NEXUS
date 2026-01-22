@@ -19,13 +19,17 @@ export class NotificationService {
       return;
     }
 
-    console.log("hello")
+    console.log("hello");
 
     if (!storeHelper.getSetting("notifications")) {
       return;
     }
 
-    console.log("idiot")
+    if (!storeHelper.getSetting("soundEffects")) {
+      silent = true;
+    }
+
+    console.log("idiot");
 
     const options: NotificationConstructorOptions = {
       title,

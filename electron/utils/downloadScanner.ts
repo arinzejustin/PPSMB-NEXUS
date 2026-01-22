@@ -2,50 +2,42 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { pipeline } from "stream/promises";
 import type { FileVersionInfo } from "../types";
 
-let retryCount: number = 0;
+const VERSION_URL = "https://axiolot.com.ng/files/scanner-version.json";
+const SCANNER_NAME = "scanner.exe";
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000;
 
 async function getLatestVersion(): Promise<FileVersionInfo> {
-  try {
-    const response = await axios.get<FileVersionInfo>(
-      "https://axiolot.com.ng/files/scanner-version.json",
-      { timeout: 10000 },
-    );
-    return response.data;
-  } catch (error) {
-    throw new Error("Failed to fetch version information");
-  }
+  const { data } = await axios.get<FileVersionInfo>(VERSION_URL, {
+    timeout: 10_000,
+  });
+  return data;
 }
 
-async function getCurrentLocalVersion(
-  filePath: string,
-): Promise<string | null> {
+function getCurrentLocalVersion(targetFile: string): string | null {
+  const versionFile = `${targetFile}.version`;
   try {
-    const versionFilePath = `${filePath}.version`;
-    if (fs.existsSync(versionFilePath)) {
-      return fs.readFileSync(versionFilePath, "utf8").trim();
-    }
-    return null;
-  } catch (error) {
+    return fs.existsSync(versionFile)
+      ? fs.readFileSync(versionFile, "utf8").trim()
+      : null;
+  } catch {
     return null;
   }
 }
 
-async function saveVersionInfo(
-  filePath: string,
-  version: string,
-): Promise<void> {
-  const versionFilePath = `${filePath}.version`;
-  fs.writeFileSync(versionFilePath, version, "utf8");
+function saveVersionInfo(targetFile: string, version: string): void {
+  fs.writeFileSync(`${targetFile}.version`, version, "utf8");
 }
 
 async function calculateChecksum(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256");
-    const stream = fs.createReadStream(filePath);
+  const hash = crypto.createHash("sha256");
+  const stream = fs.createReadStream(filePath);
 
-    stream.on("data", (data) => hash.update(data));
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk) => hash.update(chunk));
     stream.on("end", () => resolve(hash.digest("hex")));
     stream.on("error", reject);
   });
@@ -57,89 +49,74 @@ async function downloadFile(
   version: string,
   expectedChecksum?: string,
 ): Promise<void> {
-  const response = await axios({
-    url,
-    method: "GET",
-    responseType: "stream",
-    timeout: 30000,
-  });
-
   const tempFile = `${targetFile}.tmp`;
-  const writer = fs.createWriteStream(tempFile);
-  response.data.pipe(writer);
 
-  await new Promise<void>((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", (err) => {
-      fs.unlink(tempFile, () => {});
-      reject(err);
-    });
+  const response = await axios.get(url, {
+    responseType: "stream",
+    timeout: 30_000,
   });
+
+  await pipeline(response.data, fs.createWriteStream(tempFile));
 
   if (expectedChecksum) {
     const actualChecksum = await calculateChecksum(tempFile);
     if (actualChecksum !== expectedChecksum) {
       fs.unlinkSync(tempFile);
-      throw new Error(
-        `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}`,
-      );
+      throw new Error("Checksum verification failed");
     }
   }
 
   if (fs.existsSync(targetFile)) {
     fs.unlinkSync(targetFile);
   }
-  fs.renameSync(tempFile, targetFile);
 
-  await saveVersionInfo(targetFile, version);
+  fs.renameSync(tempFile, targetFile);
+  saveVersionInfo(targetFile, version);
 }
 
 export async function ensureExternalFileExists(
   app: Electron.App,
 ): Promise<{ title: string; message: string; status: boolean } | void> {
-  try {
-    const appPath = app.getPath("userData");
-    const targetFile = path.join(appPath, "scanner.exe");
+  const appPath = app.getPath("userData");
+  const targetFile = path.join(appPath, SCANNER_NAME);
 
-    const latestVersionInfo = await getLatestVersion();
-    const currentVersion = await getCurrentLocalVersion(targetFile);
+  fs.mkdirSync(appPath, { recursive: true });
 
-    const fileExists = fs.existsSync(targetFile);
-    const versionMatches = currentVersion === latestVersionInfo.version;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const latest = await getLatestVersion();
+      const currentVersion = getCurrentLocalVersion(targetFile);
 
-    if (fileExists && versionMatches) {
-      retryCount = 0;
-      return;
-    }
+      const fileExists = fs.existsSync(targetFile);
+      const versionMatches = currentVersion === latest.version;
 
-    await downloadFile(
-      latestVersionInfo.url,
-      targetFile,
-      latestVersionInfo.version,
-      latestVersionInfo.checksum,
-    );
+      if (fileExists && versionMatches) {
+        return;
+      }
 
-    retryCount = 0;
-    return {
-      title: fileExists ? "Scanner Updated" : "Scanner Downloaded",
-      message: fileExists
-        ? `Scanner version ${latestVersionInfo.version} is ready.`
-        : `Scanner `,
-      status: true,
-    };
-  } catch (error) {
-    retryCount++;
+      await downloadFile(
+        latest.url,
+        targetFile,
+        latest.version,
+        latest.checksum,
+      );
 
-    if (retryCount < 3) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      return await ensureExternalFileExists(app);
-    } else {
-      retryCount = 0;
       return {
-        title: "File Download Error",
-        message: `Failed to download scanner.exe, app might not work normally.`,
-        status: false,
+        title: fileExists ? "Scanner Updated" : "Scanner Downloaded",
+        message: `Scanner version ${latest.version} is ready.`,
+        status: true,
       };
+    } catch (error) {
+      if (attempt === MAX_RETRIES) {
+        return {
+          title: "File Download Error",
+          message:
+            "Failed to download scanner.exe. The application may not function correctly.",
+          status: false,
+        };
+      }
+
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     }
   }
 }
