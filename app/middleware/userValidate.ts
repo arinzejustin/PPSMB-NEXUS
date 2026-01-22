@@ -10,6 +10,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!user.value || !user.value.isAuthenticated) {
     if (window.electronAPI) {
       if (pinLocked.value) return navigateTo(`/pin?redirect=${redirectTo}`);
-    } else return navigateTo(`/login?redirect=${redirectTo}`);
+    } else {
+      return navigateTo(`/login?redirect=${redirectTo}`);
+    }
   }
 });

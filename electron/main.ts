@@ -25,6 +25,8 @@ import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
 import type { UserDetails, Auth } from "./types.js";
 
+app.setAppUserModelId("PPSMB Staff Manager");
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

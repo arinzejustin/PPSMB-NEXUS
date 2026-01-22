@@ -89,10 +89,7 @@ const lockTimeOptions = [
 
 const languageOptions = [
     { value: 'en', label: 'English' },
-    { value: 'es', label: 'Español' },
-    { value: 'fr', label: 'Français' },
-    { value: 'de', label: 'Deutsch' },
-    { value: 'zh', label: '中文' },
+    { value: 'ig', label: 'Igbo' },
 ];
 
 const fontSizeOptions = [
@@ -171,11 +168,6 @@ const handleDownloadApp = async () => {
 
 }
 
-const rrr = (e: any) => {
-    window.alert(e);
-    e.preventDefault();
-}
-
 const handleLock = () => {
     lockSession();
 };
@@ -211,11 +203,13 @@ const loadSettings = async () => {
             const notifications = await window.electronAPI.getSetting('notifications');
             const lockScreen = await window.electronAPI.getSetting('lockScreen');
             const soundEffects = await window.electronAPI.getSetting('soundEffects');
+            const autoUpdate = await window.electronAPI.getSetting('autoUpdate')
 
             if (autoSave !== undefined) settings.autoSave = autoSave;
             if (notifications !== undefined) settings.notifications = notifications;
             if (lockScreen !== undefined) settings.lockScreen = lockScreen;
             if (soundEffects !== undefined) settings.soundEffects = soundEffects;
+            if (autoUpdate !== undefined) settings.autoUpdate = autoUpdate;
         } catch (error) {
             console.error('Failed to load settings:', error);
         }
@@ -263,7 +257,8 @@ const changePin = async (): Promise<void> => {
         })
 
         if (!data.status) {
-            changeError.value = data.message;
+            changeError.value = "Failed To Change PIN";
+            showToast("Failed To Change PIN", "error")
             return;
         }
 
@@ -299,6 +294,7 @@ watch(() => settings.autoSave, (val) => updateSetting('autoSave', val));
 watch(() => settings.notifications, (val) => updateSetting('notifications', val));
 watch(() => settings.lockScreen, (val) => updateSetting('lockScreen', Number(val)));
 watch(() => settings.soundEffects, (val) => updateSetting('soundEffects', val));
+watch(() => settings.autoUpdate, (val) => updateSetting('autoUpdate', val));
 
 </script>
 
@@ -746,7 +742,7 @@ watch(() => settings.soundEffects, (val) => updateSetting('soundEffects', val));
                             <Separator />
 
                             <div class="space-y-4">
-                                <div class="flex items-center justify-between p-4 border rounded-xl bg-muted/50">
+                                <div class="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                                     <div>
                                         <Label class="font-semibold">Cache Size</Label>
                                         <p class="text-sm font-inter text-muted-foreground mt-1">248 MB</p>
@@ -756,15 +752,15 @@ watch(() => settings.soundEffects, (val) => updateSetting('soundEffects', val));
                                     </Button>
                                 </div>
 
-                                <div class="flex items-center justify-between p-4 border rounded-xl bg-muted/50">
+                                <div class="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                                     <div>
                                         <Label class="font-semibold">Total Storage Used</Label>
                                         <p class="text-sm text-muted-foreground font-inter mt-1">1.2 GB / 3 GB</p>
                                         <span class="font-app text-xs mt-1 text-muted-foreground">Till next forced
                                             sync</span>
                                     </div>
-                                    <div class="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                                        <div class="h-full bg-primary" style="width: 24%"></div>
+                                    <div class="w-32 h-3 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary" style="width: 46%"></div>
                                     </div>
                                 </div>
                             </div>

@@ -19,8 +19,6 @@ export class NotificationService {
       return;
     }
 
-    console.log("hello");
-
     if (!storeHelper.getSetting("notifications")) {
       return;
     }
@@ -29,21 +27,21 @@ export class NotificationService {
       silent = true;
     }
 
-    console.log("idiot");
-
     const options: NotificationConstructorOptions = {
       title,
       body,
       silent: silent,
-      icon: path.join(__dirname, "../public/favicon.ico"),
+      icon: path.join(__dirname, "../../public/favicon.ico"),
     };
 
     const notification = new Notification(options);
+
+    console.log("Notifications supported:", Notification.isSupported());
 
     notification.on("click", () => {
       console.log(`User clicked notification: ${title}`);
     });
 
     notification.show();
-  }
+  } 
 }

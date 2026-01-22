@@ -49,12 +49,6 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
       "Up to Date",
       "You are already running the latest version.",
     );
-    console.log(
-      NotificationService.show(
-        "Up to Date",
-        "You are already running the latest version.",
-      ),
-    );
     autoUpdater.checkForUpdates();
   });
 
@@ -62,5 +56,5 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
     if (!storeHelper.get("updateDownloaded")) return;
   });
 
-  autoUpdater.checkForUpdates();
+  if (storeHelper.getSetting("autoUpdate")) autoUpdater.checkForUpdates();
 }

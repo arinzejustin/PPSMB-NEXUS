@@ -11,6 +11,7 @@ import { ensureExternalFileExists } from "./utils/downloadScanner.js";
 import { dbManager } from "./database/app.db.js";
 import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
+app.setAppUserModelId("PPSMB Staff Manager");
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 let win = null;

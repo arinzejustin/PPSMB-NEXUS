@@ -176,7 +176,8 @@ export default defineComponent({
                 if (validData) {
                     this.user = validData;
                     this.unLockSession();
-                    await navigateTo(this.redirectUrl);
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    navigateTo(this.redirectUrl);
                 } else {
                     this.errCount++;
                     if (this.errCount >= this.MAX_ATTEMPTS) {

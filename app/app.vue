@@ -34,7 +34,7 @@ export default defineComponent({
     const route = useRoute();
     const token = useToken();
     const { theme } = useTheme();
-    const { lockSession } = useLockWindow()
+    const { lockSession } = useLockWindow();
 
     const refreshToken = async () => {
       try {
@@ -234,6 +234,7 @@ export default defineComponent({
         }),
 
         window.electronAPI.onIdle(() => {
+          if (this.route.path === "/login" || this.route.path === "/pin") return;
           this.lockSession()
         }),
 

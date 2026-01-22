@@ -4,10 +4,10 @@ export const useLockWindow = () => {
     sameSite: "strict",
     default: () => false,
   });
-  const route = useRoute();
-  const redirect = encodeURIComponent(route.path);
 
   const lockSession = () => {
+    const route = useRoute();
+    const redirect = encodeURIComponent(route.path);
     if (!user.value) return;
     pinLocked.value = true;
     user.value.isAuthenticated = false;
