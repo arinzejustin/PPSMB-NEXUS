@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import { compareSync } from "@node-rs/bcrypt";
 import { useSupabase } from "@@/server/utils/supabase/client";
 import type { UserDetails, Auth } from "#shared/types";
 import type { LoginAuth } from "@/types/index";
@@ -30,7 +30,7 @@ export const validateStaffCredentials = async (
     };
   }
 
-  const isPasswordValid = await bcrypt.compare(password, user.password);
+  const isPasswordValid = compareSync(password, user.password);
 
   if (!isPasswordValid) {
     return {
