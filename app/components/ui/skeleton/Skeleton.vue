@@ -1,14 +1,38 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
-import { cn } from '@/utils/shadcn'
+import { computed, type HTMLAttributes } from 'vue';
 
-interface SkeletonProps {
+interface Props {
   class?: HTMLAttributes["class"]
+  animated?: boolean;
+  color?: string;
 }
 
-const props = defineProps<SkeletonProps>()
+const props = withDefaults(defineProps<Props>(), {
+  class: '',
+  animated: true,
+  color: 'bg-primary/20'
+});
+
+const hasRoundedClass = computed(() => {
+  return /\brounded(-\w+)?\b/.test(props.class);
+});
+
+const containerClasses = computed(() => {
+  return [
+    'relative overflow-hidden',
+    !hasRoundedClass.value ? 'rounded-md' : '',
+    props.color,
+    props.class,
+    props.animated ? '' : 'animate-pulse'
+  ]
+    .filter(Boolean)
+    .join(' ');
+});
 </script>
 
 <template>
-  <div :class="cn('animate-pulse rounded-md bg-primary/10', props.class)" />
+  <div :class="containerClasses">
+    <div v-if="animated" :class="`${hasRoundedClass}`"
+      class="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-primary/30 to-transparent animate-shimmer" />
+  </div>
 </template>

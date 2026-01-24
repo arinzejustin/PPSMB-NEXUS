@@ -228,7 +228,7 @@ watch(() => route.path, () => {
       </div>
 
       <!-- Navigation -->
-      <ScrollArea class="flex-1 px-3">
+      <ScrollArea class="flex-1 px-3 mb-2">
         <nav class="space-y-1 py-2">
           <template v-for="item in navItems" :key="item.id">
             <!-- Item with children -->

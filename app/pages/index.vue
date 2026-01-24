@@ -38,7 +38,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 
 // Register ChartJS components
 ChartJS.register(
@@ -325,13 +325,13 @@ const refreshData = () => {
   setTimeout(() => {
     lastUpdated.value = new Date();
     isLoading.value = false;
-  }, 1000);
+  }, 10000000);
 };
 
 onMounted(() => {
   setTimeout(() => {
     isLoading.value = false;
-  }, 800);
+  }, 8000000);
 });
 </script>
 
@@ -359,13 +359,14 @@ onMounted(() => {
 
     <!-- KPI Cards -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card v-for="kpi in kpiData" :key="kpi.id" class="relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-        <div :class="['absolute inset-0 opacity-5 bg-gradient-to-br', kpi.color]"></div>
+      <Card v-for="kpi in kpiData" :key="kpi.id"
+        class="relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+        <div :class="['absolute inset-0 opacity-5 bg-linear-to-br', kpi.color]"></div>
         <CardHeader class="flex flex-row items-center justify-between pb-2">
           <CardTitle class="text-sm font-medium text-muted-foreground">
             {{ kpi.title }}
           </CardTitle>
-          <div :class="['p-2 rounded-lg bg-gradient-to-br text-white', kpi.color]">
+          <div :class="['p-2 rounded-lg bg-linear-to-br text-white', kpi.color]">
             <component :is="kpi.icon" class="w-4 h-4" />
           </div>
         </CardHeader>
@@ -464,7 +465,8 @@ onMounted(() => {
             <CardDescription>Latest actions in the system</CardDescription>
           </div>
           <Button variant="ghost" size="sm">
-            View All <ChevronRight class="w-4 h-4 ml-1" />
+            View All
+            <ChevronRight class="w-4 h-4 ml-1" />
           </Button>
         </CardHeader>
         <CardContent>
@@ -479,11 +481,8 @@ onMounted(() => {
               </div>
             </template>
             <template v-else>
-              <div
-                v-for="activity in recentActivity"
-                :key="activity.id"
-                class="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
-              >
+              <div v-for="activity in recentActivity" :key="activity.id"
+                class="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group">
                 <div :class="['p-2 rounded-full shrink-0', getActivityStatusColor(activity.status)]">
                   <component :is="activity.icon" class="w-4 h-4" />
                 </div>
@@ -495,7 +494,8 @@ onMounted(() => {
                     {{ activity.time }}
                   </p>
                 </div>
-                <ChevronRight class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                <ChevronRight
+                  class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             </template>
           </div>
@@ -513,15 +513,10 @@ onMounted(() => {
         </CardHeader>
         <CardContent>
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <NuxtLink
-              v-for="action in quickActions"
-              :key="action.label"
-              :to="action.to"
-              :class="[
-                'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white transition-all duration-300 hover:scale-105 hover:shadow-lg',
-                action.color
-              ]"
-            >
+            <NuxtLink v-for="action in quickActions" :key="action.label" :to="action.to" :class="[
+              'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white transition-all duration-300 hover:scale-105 hover:shadow-lg',
+              action.color
+            ]">
               <component :is="action.icon" class="w-6 h-6" />
               <span class="text-sm font-medium">{{ action.label }}</span>
             </NuxtLink>
@@ -540,11 +535,8 @@ onMounted(() => {
         </CardHeader>
         <CardContent>
           <div class="space-y-3">
-            <div
-              v-for="event in upcomingEvents"
-              :key="event.id"
-              class="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-            >
+            <div v-for="event in upcomingEvents" :key="event.id"
+              class="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
               <div class="text-center shrink-0">
                 <div class="text-2xl font-bold text-primary">
                   {{ format(new Date(event.date), 'd') }}

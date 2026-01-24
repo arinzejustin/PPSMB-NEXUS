@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { definePageMeta, navigateTo } from '#imports';
+import { definePageMeta, useRoute } from '#imports';
 import {
     FileText,
     Search,
-    Filter,
-    Plus,
     MoreHorizontal,
     Eye,
     Download,
@@ -13,7 +11,6 @@ import {
     Folder,
     Grid3X3,
     List,
-    Image,
     FileType2,
     Clock,
     CheckCircle2,
@@ -24,9 +21,6 @@ import {
     FolderOpen,
     Calendar,
     Tag,
-    ChevronRight,
-    RefreshCw,
-    AlertTriangle,
     MonitorDown
 } from 'lucide-vue-next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,7 +41,6 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -63,7 +56,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, formatDistanceToNow } from 'date-fns';
 
 definePageMeta({
-    layout: 'app'
+    layout: 'app',
+    middleware: "user-validate"
 });
 
 const searchQuery = ref('');
@@ -72,10 +66,12 @@ const viewMode = ref<'grid' | 'list'>('grid');
 const showPreview = ref(false);
 const selectedDocument = ref<any>(null);
 const isDesktop = ref(false);
+const route = useRoute();
 
-// Check if running in Electron
 onMounted(() => {
     isDesktop.value = !!window.electronAPI;
+    const activateScanner = route.query.scan as string;
+    if (activateScanner) openScanner()
 });
 
 // Document categories
@@ -257,7 +253,7 @@ const previewDocument = (doc: any) => {
 
 const openScanner = () => {
     if (isDesktop.value) {
-        navigateTo('/documents/scan');
+
     }
 };
 
@@ -289,7 +285,6 @@ const getCategoryLabel = (value: string) => {
             </div>
         </div>
 
-        <!-- Desktop-Only Notice -->
         <Card v-if="!isDesktop" class="border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800">
             <CardContent class="flex items-center gap-4 pt-6">
                 <div class="p-3 rounded-full bg-amber-100 dark:bg-amber-900/30">
@@ -299,13 +294,11 @@ const getCategoryLabel = (value: string) => {
                     <h3 class="font-semibold text-amber-800 dark:text-amber-400">Desktop Application Required</h3>
                     <p class="text-sm text-amber-700 dark:text-amber-500">
                         Document scanning functionality requires the desktop application. The scanner uses an external
-                        Python-based scanning module that is only available on the desktop version.
+                        scanning module that is only available on the desktop version.
                     </p>
                 </div>
             </CardContent>
         </Card>
-
-        <!-- Stats Cards -->
         <div class="grid gap-4 md:grid-cols-4">
             <Card>
                 <CardContent class="pt-6">
@@ -445,7 +438,7 @@ const getCategoryLabel = (value: string) => {
                             @click="previewDocument(doc)">
                             <!-- Thumbnail -->
                             <div
-                                class="aspect-[4/3] bg-muted rounded-t-lg flex items-center justify-center relative overflow-hidden">
+                                class="aspect-4/3 bg-muted rounded-t-lg flex items-center justify-center relative overflow-hidden">
                                 <FileText class="w-16 h-16 text-muted-foreground/30" />
                                 <!-- Status Indicator -->
                                 <div
@@ -556,7 +549,7 @@ const getCategoryLabel = (value: string) => {
 
                 <div v-if="selectedDocument" class="space-y-4">
                     <!-- Preview Area -->
-                    <div class="aspect-[4/3] bg-muted rounded-lg flex items-center justify-center">
+                    <div class="aspect-4/3 bg-muted rounded-lg flex items-center justify-center">
                         <div class="text-center text-muted-foreground">
                             <FileText class="w-16 h-16 mx-auto mb-2 opacity-30" />
                             <p>Document preview would display here</p>

@@ -176,7 +176,6 @@ export default defineComponent({
                 if (validData) {
                     this.user = validData;
                     this.unLockSession();
-                    await new Promise(resolve => setTimeout(resolve, 300));
                     navigateTo(this.redirectUrl);
                 } else {
                     this.errCount++;
@@ -191,6 +190,7 @@ export default defineComponent({
                 this.pinError = error.message || 'Verification failed. Please try again.';
                 this.pinValue = [];
             } finally {
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 this.isLoading = false;
             }
         },
