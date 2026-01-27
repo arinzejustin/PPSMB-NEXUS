@@ -203,113 +203,126 @@ export default defineComponent({
           console.warn("Search Teacher not implemented");
         } else if (key === 'i') {
           // e.preventDefault();
-          navigateTo("/pin");
+          // navigateTo("/pin");
         }
       }
     },
+
+    resolveElectronAuthRoute(): { url: string; user: (UserDetails & { authenticated: boolean }) | null } {
+      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;      // 30 days
+      const CREDENTIALS_TTL = 180 * 24 * 60 * 60 * 1000; // 180 days
+      const now = Date.now();
+
+      const hasLoggedIn = getStorage<boolean>('hasLoggedIn');
+      const lastTime = getStorage<number>('lastTime');
+      const userDetails = getStorage<UserDetails>('userDetails');
+      const snapshot = getStorage<string | undefined | null>('snapshot');
+
+      const redirect = snapshot || '/';
+      let url = `/login?redirect=${encodeURIComponent(redirect)}`;
+      let user: (UserDetails & { authenticated: boolean }) | null = null;
+
+      const isSessionValid = hasLoggedIn && lastTime && lastTime > (now - SESSION_TTL);
+
+      if (isSessionValid) {
+        const isCredentialsValid = userDetails?.lastLogin && userDetails.lastLogin > (now - CREDENTIALS_TTL);
+
+        if (isCredentialsValid) {
+          setStorage('lastTime', now);
+          url = `/pin?redirect=${encodeURIComponent(redirect)}`;
+          user = { ...userDetails, authenticated: false };
+        } else {
+          setStorage('lastTime', now - CREDENTIALS_TTL);
+          setStorage('hasLoggedIn', false);
+        }
+      }
+
+      return { url, user };
+    },
+
+    triggerContextMenu(x: number, y: number): void {
+      const trigger = (this.$refs.menuTrigger as HTMLElement) ?? document.getElementById('menuTrigger');
+      if (!trigger || typeof x !== 'number' || typeof y !== 'number') return;
+
+      trigger.style.left = `${x}px`;
+      trigger.style.top = `${y}px`;
+      trigger.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: x,
+          clientY: y,
+        })
+      );
+    },
+
+    applyWebTheme(): void {
+      const theme = getStorage<string>('theme') || 'system';
+      const className = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+      document.documentElement.className = className;
+    },
   },
+
+
 
   async mounted() {
     if (!import.meta.client) return;
+
     this.changeRotation();
-    setInterval(() => {
-      this.refreshToken();
-    }, 1000 * 60 * 30);
+    setInterval(() => this.refreshToken(), 30 * 60 * 1000);
 
-    let urlTo = "/login";
+    const isElectron = !!window.electronAPI;
 
-    if (window.electronAPI) {
-      window.addEventListener("keydown", this.handleKeydown);
-      const state = await window.electronAPI.getUpdateState();
+    if (isElectron) {
+      window.addEventListener('keydown', this.handleKeydown);
 
-      if (state.downloaded) {
-        this.status = "ready";
-        this.version = state.version ?? "";
+      const updateState = await window.electronAPI!.getUpdateState();
+      if (updateState.downloaded) {
+        this.status = 'ready';
+        this.version = updateState.version ?? '';
       }
 
       this.off.push(
-        window.electronAPI.onUpdateAvailable((v: string) => {
-          this.version = v;
-          this.status = "available";
+        window.electronAPI!.onUpdateAvailable((version: string) => {
+          this.version = version;
+          this.status = 'available';
         }),
 
-        window.electronAPI.onIdle(() => {
-          if (this.route.path === "/login" || this.route.path === "/pin") return;
-          this.lockSession()
+        window.electronAPI!.onIdle(() => {
+          if (['/login', '/pin'].includes(this.route.path)) return;
+          this.lockSession();
         }),
 
-        window.electronAPI.onUpdateProgress((p: number) => {
-          this.status = "downloading";
-          this.progress = p;
+        window.electronAPI!.onUpdateProgress((progress: number) => {
+          this.status = 'downloading';
+          this.progress = progress;
         }),
 
-        window.electronAPI.onUpdateDownloaded(() => {
-          this.status = "ready";
+        window.electronAPI!.onUpdateDownloaded(() => {
+          this.status = 'ready';
           this.countdown = 60;
-
           if (this.timer) clearInterval(this.timer);
           this.timer = setInterval(this.tick, 1500);
         }),
 
-        window.electronAPI.onScanDocument(() => {
-          navigateTo("/documents/scan");
-        }),
+        window.electronAPI!.onScanDocument(() => navigateTo('/documents/scan')),
 
-        window.electronAPI.openContextMenu((options) => {
+        window.electronAPI!.openContextMenu((options) => {
           this.menuOptions = options;
-          const { x, y } = options;
-
-          let trigger = this.$refs.menuTrigger as HTMLElement | null;
-          if (!trigger) {
-            trigger = document.getElementById('menuTrigger');
-          }
-          if (trigger && typeof x === 'number' && typeof y === 'number') {
-            trigger.style.left = `${x}px`;
-            trigger.style.top = `${y}px`;
-            trigger.dispatchEvent(
-              new MouseEvent("contextmenu", {
-                bubbles: true,
-                cancelable: true,
-                clientX: x,
-                clientY: y,
-              })
-            );
-          }
+          this.triggerContextMenu(options.x as number, options.y as number);
         })
       );
 
-      const hasLoggedIn = getStorage<boolean>('hasLoggedIn'),
-        lastTime = getStorage<number>('lastTime'),
-        userDetails = getStorage<UserDetails>('userDetails');
-
-      if (hasLoggedIn && lastTime && lastTime > Date.now() - 30 * 24 * 60 * 60 * 1000) {
-        if (userDetails && userDetails.lastLogin && userDetails.lastLogin > Date.now() - 180 * 24 * 60 * 60 * 1000) {
-          setStorage('lastTime', Date.now());
-          urlTo = '/pin';
-          this.user = {
-            ...userDetails,
-            authenticated: false
-          }
-        } else {
-          setStorage('lastTime', Date.now() - 180 * 24 * 60 * 60 * 1000);
-          setStorage('hasLoggedIn', false);
-        }
-      };
-
-      navigateTo(urlTo)
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-      return this.loading = false;
+      const { url, user } = this.resolveElectronAuthRoute();
+      if (user) this.user = user;
+      navigateTo(url);
     } else {
-      const theme = getStorage<string>("theme") || "system";
-      if (theme === "system") {
-        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.className = isDark ? 'dark' : 'light';
-      } else {
-        document.documentElement.className = theme;
-      }
+      this.applyWebTheme();
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+    await new Promise((resolve) => setTimeout(resolve, isElectron ? 4000 : 2000));
     this.loading = false;
   },
 

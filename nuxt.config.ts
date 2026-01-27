@@ -16,10 +16,10 @@ export default defineNuxtConfig({
         { name: "format-detection", content: "telephone=no" },
         isDesktop
           ? {
-              "http-equiv": "Content-Security-Policy",
-              content:
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' 'unsafe-inline'; frame-src 'self';",
-            }
+            "http-equiv": "Content-Security-Policy",
+            content:
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' 'unsafe-inline'; frame-src 'self';",
+          }
           : {},
       ],
       link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
@@ -56,7 +56,6 @@ export default defineNuxtConfig({
   vite: {
     build: {
       rollupOptions: {
-        external: ["better-sqlite3"],
       },
     },
   },

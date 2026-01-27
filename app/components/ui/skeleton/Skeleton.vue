@@ -33,6 +33,6 @@ const containerClasses = computed(() => {
 <template>
   <div :class="containerClasses">
     <div v-if="animated" :class="`${hasRoundedClass}`"
-      class="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-primary/30 to-transparent animate-shimmer" />
+      class="absolute inset-0 bg-linear-to-r from-transparent via-primary/30 to-transparent animate-shimmer" />
   </div>
 </template>

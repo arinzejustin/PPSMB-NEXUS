@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { definePageMeta, navigateTo } from '#imports';
 import {
     Search,
-    Filter,
     Download,
+    FileText,
     Plus,
     MoreHorizontal,
     Eye,
@@ -30,7 +30,7 @@ import {
     AlertCircle,
     AlertTriangle
 } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -488,7 +488,7 @@ const transferSchools = [
                                 <SelectValue placeholder="All Zones" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Zones</SelectItem>
+                                <SelectItem :value="null" disabled>All Zones</SelectItem>
                                 <SelectItem v-for="zone in zones" :key="zone" :value="zone">
                                     {{ zone }}
                                 </SelectItem>
@@ -499,7 +499,7 @@ const transferSchools = [
                                 <SelectValue placeholder="All Status" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Status</SelectItem>
+                                <SelectItem :value="null" disabled>All Status</SelectItem>
                                 <SelectItem v-for="status in certStatuses" :key="status.value" :value="status.value">
                                     {{ status.label }}
                                 </SelectItem>
@@ -510,7 +510,7 @@ const transferSchools = [
                                 <SelectValue placeholder="Qualification" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Qualifications</SelectItem>
+                                <SelectItem :value="null" disabled>All Qualifications</SelectItem>
                                 <SelectItem v-for="qual in qualifications" :key="qual" :value="qual">
                                     {{ qual }}
                                 </SelectItem>

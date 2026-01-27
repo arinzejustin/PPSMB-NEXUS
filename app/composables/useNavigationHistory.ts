@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { setStorage } from "@/lib/storage";
 
 const EXCLUDED_ROUTES = new Set(["/login", "/pin"]);
 
@@ -20,6 +21,8 @@ export function useNavigationHistory() {
     }
 
     currentPath.value = to as string;
+    if (!to?.includes("/pin") || !to?.includes("/login"))
+      setStorage("snapshot", to);
   }
 
   function popBack(current: string) {

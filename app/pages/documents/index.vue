@@ -411,7 +411,7 @@ const getCategoryLabel = (value: string) => {
                                     <SelectValue placeholder="All Categories" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All Categories</SelectItem>
+                                    <SelectItem :value="null" :disabled="true">All Categories</SelectItem>
                                     <SelectItem v-for="cat in categories" :key="cat.value" :value="cat.value">
                                         {{ cat.label }} ({{ cat.count }})
                                     </SelectItem>

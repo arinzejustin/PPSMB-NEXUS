@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { definePageMeta } from '#imports';
+import { useUser } from '@/composables/states'
 import {
   Users,
   Building2,
@@ -16,13 +17,11 @@ import {
   FileCheck,
   Mail,
   Calendar,
-  ExternalLink,
   RefreshCw
 } from 'lucide-vue-next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Line, Bar, Doughnut } from 'vue-chartjs';
 import {
@@ -40,7 +39,6 @@ import {
 } from 'chart.js';
 import { format } from 'date-fns';
 
-// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -55,7 +53,8 @@ ChartJS.register(
 );
 
 definePageMeta({
-  layout: 'app'
+  layout: 'app',
+  middleware: ['user-validate']
 });
 
 const isLoading = ref(true);
@@ -325,13 +324,18 @@ const refreshData = () => {
   setTimeout(() => {
     lastUpdated.value = new Date();
     isLoading.value = false;
-  }, 10000000);
+  }, 1000);
 };
+
+const user = computed(() => {
+  const user = useUser();
+  return user.value;
+});
 
 onMounted(() => {
   setTimeout(() => {
     isLoading.value = false;
-  }, 8000000);
+  }, 800);
 });
 </script>
 
@@ -342,7 +346,7 @@ onMounted(() => {
       <div>
         <h1 class="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <p class="text-muted-foreground mt-1">
-          Welcome back! Here's an overview of your system.
+          Welcome Back {{ user.name.split(" ")[1] }}! Here's an overview of your system.
         </p>
       </div>
       <div class="flex items-center gap-3">
@@ -360,10 +364,10 @@ onMounted(() => {
     <!-- KPI Cards -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card v-for="kpi in kpiData" :key="kpi.id"
-        class="relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+        class="relative overflow-hidden group hover:shadow-lg hover:scale-105 transition-all duration-700">
         <div :class="['absolute inset-0 opacity-5 bg-linear-to-br', kpi.color]"></div>
         <CardHeader class="flex flex-row items-center justify-between pb-2">
-          <CardTitle class="text-sm font-medium text-muted-foreground">
+          <CardTitle class="text-sm lg:text-base font-medium font-app text-muted-foreground">
             {{ kpi.title }}
           </CardTitle>
           <div :class="['p-2 rounded-lg bg-linear-to-br text-white', kpi.color]">
@@ -392,6 +396,25 @@ onMounted(() => {
       </Card>
     </div>
 
+    <!-- Quick Actions -->
+    <Card class="space-y-4">
+      <CardHeader>
+        <CardTitle>Quick Actions</CardTitle>
+        <CardDescription>Common tasks and shortcuts</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <NuxtLink v-for="action in quickActions" :key="action.label" :to="action.to" :class="[
+            'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white transition-all duration-300 hover:scale-105 hover:shadow-lg',
+            action.color
+          ]">
+            <component :is="action.icon" class="w-6 h-6" />
+            <span class="text-sm font-medium">{{ action.label }}</span>
+          </NuxtLink>
+        </div>
+      </CardContent>
+    </Card>
+
     <!-- Charts Row -->
     <div class="grid gap-6 lg:grid-cols-3">
       <!-- Monthly Trend Chart -->
@@ -404,7 +427,7 @@ onMounted(() => {
           <CardDescription>Documents processed and transfers completed by month</CardDescription>
         </CardHeader>
         <CardContent>
-          <div class="h-[300px]">
+          <div class="h-75">
             <Line v-if="!isLoading" :data="monthlyTrendData" :options="chartOptions" />
             <div v-else class="flex items-center justify-center h-full">
               <Skeleton class="h-full w-full rounded-lg" />
@@ -423,7 +446,7 @@ onMounted(() => {
           <CardDescription>Teacher certification breakdown</CardDescription>
         </CardHeader>
         <CardContent>
-          <div class="h-[300px]">
+          <div class="h-75">
             <Doughnut v-if="!isLoading" :data="certificationData" :options="donutOptions" />
             <div v-else class="flex items-center justify-center h-full">
               <Skeleton class="h-48 w-48 rounded-full mx-auto" />
@@ -445,7 +468,7 @@ onMounted(() => {
           <CardDescription>Teachers and schools by administrative zone</CardDescription>
         </CardHeader>
         <CardContent>
-          <div class="h-[300px]">
+          <div class="h-75">
             <Bar v-if="!isLoading" :data="zoneChartData" :options="barChartOptions" />
             <div v-else class="flex items-center justify-center h-full">
               <Skeleton class="h-full w-full rounded-lg" />
@@ -505,24 +528,6 @@ onMounted(() => {
 
     <!-- Quick Actions and Upcoming Events -->
     <div class="grid gap-6 lg:grid-cols-3">
-      <!-- Quick Actions -->
-      <Card class="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common tasks and shortcuts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <NuxtLink v-for="action in quickActions" :key="action.label" :to="action.to" :class="[
-              'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white transition-all duration-300 hover:scale-105 hover:shadow-lg',
-              action.color
-            ]">
-              <component :is="action.icon" class="w-6 h-6" />
-              <span class="text-sm font-medium">{{ action.label }}</span>
-            </NuxtLink>
-          </div>
-        </CardContent>
-      </Card>
 
       <!-- Upcoming Events -->
       <Card>
@@ -552,6 +557,24 @@ onMounted(() => {
                 </Badge>
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+      <!-- Quick Actions -->
+      <Card class="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Scan Document</CardTitle>
+          <CardDescription>Common tasks and shortcuts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <NuxtLink v-for="action in quickActions" :key="action.label" :to="action.to" :class="[
+              'flex flex-col items-center justify-center gap-2 p-4 rounded-xl text-white transition-all duration-300 hover:scale-105 hover:shadow-lg',
+              action.color
+            ]">
+              <component :is="action.icon" class="w-6 h-6" />
+              <span class="text-sm font-medium">{{ action.label }}</span>
+            </NuxtLink>
           </div>
         </CardContent>
       </Card>

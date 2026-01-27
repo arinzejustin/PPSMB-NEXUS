@@ -198,6 +198,9 @@ export default defineComponent({
         async handleLogout() {
             await logOut();
             deleteStorage("userDetails");
+            deleteStorage("hasLoggedIn");
+            deleteStorage("lastTime");
+            deleteStorage("snapshot");
             navigateTo('/login');
         }
     }
