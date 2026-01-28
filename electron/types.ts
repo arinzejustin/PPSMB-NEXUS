@@ -92,6 +92,7 @@ export interface IElectronAPI {
   clearUser: () => Promise<boolean>;
   getSystemTheme: () => Promise<"light" | "dark">;
   onSystemThemeChange: (cb: (theme: string) => void) => Unsubscribe;
+  onSyncStatusUpdate: (cb: (status: { isOnline: boolean, lastSynced: Date, pendingChanges: number }) => void) => Unsubscribe;
 }
 
 export interface UpdateSchema {
@@ -131,3 +132,4 @@ export interface AppStore {
   SUPABASE_KEY: string;
   updateDownloaded: boolean;
 }
+

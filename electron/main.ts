@@ -110,7 +110,7 @@ async function createWindow() {
     icon: path.join(__dirname, "../public/favicon.ico"),
     minWidth: 400,
     minHeight: 300,
-    show: true,
+    show: false,
     backgroundColor: "#008435",
   });
 
@@ -128,6 +128,7 @@ async function createWindow() {
 
   win.once("ready-to-show", () => {
     if (!win) return;
+    win.maximize();
     win.show();
     win.focus();
   });
@@ -242,7 +243,10 @@ function setupTray() {
 
 ipcMain.handle("db:insert", async (_event, tableName: string, doc: any) => {
   try {
-    return await dbManager.insert(tableName, doc);
+    const result = await dbManager.insert(tableName, doc);
+    // Notify sync service of data change
+    syncService.notifyDataChange();
+    return result;
   } catch (error) {
     log.error(`IPC db:insert error in ${tableName}`, error);
     return false;
@@ -281,7 +285,10 @@ ipcMain.handle(
   "db:update",
   async (_event, tableName: string, query: any, update: any, options: any) => {
     try {
-      return await dbManager.update(tableName, query, update, options);
+      const result = await dbManager.update(tableName, query, update, options);
+      // Notify sync service of data change
+      syncService.notifyDataChange();
+      return result;
     } catch (error) {
       log.error(`IPC db:update error in ${tableName}`, error);
       throw error;
@@ -293,7 +300,10 @@ ipcMain.handle(
   "db:delete",
   async (_event, tableName: string, query: any, options: any) => {
     try {
-      return await dbManager.delete(tableName, query, options);
+      const result = await dbManager.delete(tableName, query, options);
+      // Notify sync service of data change
+      syncService.notifyDataChange();
+      return result;
     } catch (error) {
       log.error(`IPC db:delete error in ${tableName}`, error);
       throw error;

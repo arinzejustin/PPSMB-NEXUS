@@ -1,23 +1,84 @@
-import { dbManager } from './app.db.js';
-import { getSupabase, rotateRecords } from './supabase.js';
-import axios from 'axios';
-import log from '../utils/logger.js';
+import { BrowserWindow } from "electron";
+import { dbManager } from "./app.db.js";
+import { getSupabase, rotateRecords } from "./supabase.js";
+import axios from "axios";
+import log from "../utils/logger.js";
+
+export interface SyncStatusUpdate {
+  isOnline: boolean;
+  lastSynced: Date;
+  pendingChanges: number;
+}
 
 class SyncService {
   private syncInterval: NodeJS.Timeout | null = null;
   private isSyncing: boolean = false;
+  private lastSynced: Date = new Date();
+  private isOnline: boolean = false;
+  private pendingChanges: number = 0;
 
   /**
-   * Check if internet is available
+   * Check if internet is available by pinging the server
    */
   private async checkConnection(): Promise<boolean> {
     try {
-      // Simple ping to a reliable service
-      await axios.get('https://8.8.8.8', { timeout: 2000 });
+      // Ping Google DNS as a reliable server (or use your own server)
+      await axios.get("https://8.8.8.8", { timeout: 3000 });
       return true;
     } catch {
-      return false;
+      try {
+        // Fallback: try to ping Google
+        await axios.head("https://www.google.com", { timeout: 3000 });
+        return true;
+      } catch {
+        return false;
+      }
     }
+  }
+
+  /**
+   * Count pending (unsynced) records across all tables
+   */
+  private async countPendingChanges(): Promise<number> {
+    const tablesToSync = ["scanned_records", "staff_logs"];
+    let total = 0;
+
+    for (const table of tablesToSync) {
+      try {
+        const count = await dbManager.count(table, { synced: { $ne: true } });
+        total += count;
+      } catch {
+        // Table might not exist yet
+      }
+    }
+
+    return total;
+  }
+
+  /**
+   * Broadcast sync status to all renderer windows
+   */
+  private broadcastStatus() {
+    const status: SyncStatusUpdate = {
+      isOnline: this.isOnline,
+      lastSynced: this.lastSynced,
+      pendingChanges: this.pendingChanges,
+    };
+
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send("sync-status-update", status);
+      }
+    });
+  }
+
+  /**
+   * Update status and broadcast to frontend
+   */
+  private async updateStatus() {
+    this.isOnline = await this.checkConnection();
+    this.pendingChanges = await this.countPendingChanges();
+    this.broadcastStatus();
   }
 
   /**
@@ -26,8 +87,20 @@ class SyncService {
    */
   public start(intervalMs: number = 5 * 60 * 1000) {
     if (this.syncInterval) clearInterval(this.syncInterval);
-    
-    this.syncInterval = setInterval(() => this.syncAllTables(), intervalMs);
+
+    // Initial status update
+    this.updateStatus();
+
+    // Sync and update status periodically
+    this.syncInterval = setInterval(() => {
+      this.syncAllTables();
+    }, intervalMs);
+
+    // Also update status more frequently (every 30 seconds)
+    setInterval(() => {
+      this.updateStatus();
+    }, 30000);
+
     // Initial sync
     this.syncAllTables();
   }
@@ -43,28 +116,31 @@ class SyncService {
     if (this.isSyncing) return;
     this.isSyncing = true;
 
-    const isConnected = await this.checkConnection();
-    if (!isConnected) {
-      log.info('Sync skipped: No internet connection');
+    // Update status before sync
+    await this.updateStatus();
+
+    if (!this.isOnline) {
+      log.info("Sync skipped: No internet connection");
       this.isSyncing = false;
       return;
     }
 
     try {
-      // List of tables to sync. In a "pro" version, this could be dynamic or from config.
-      // For now, let's assume 'scanned_records' is the main one.
-      const tablesToSync = ['scanned_records', 'staff_logs']; 
+      const tablesToSync = ["scanned_records", "staff_logs"];
 
       for (const table of tablesToSync) {
         await this.syncTable(table);
         await rotateRecords(table, 3000);
       }
-      
-      log.info('Sync completed successfully');
+
+      this.lastSynced = new Date();
+      log.info("Sync completed successfully");
     } catch (error) {
-      log.error('Sync failed', error);
+      log.error("Sync failed", error);
     } finally {
       this.isSyncing = false;
+      // Update status after sync
+      await this.updateStatus();
     }
   }
 
@@ -73,22 +149,24 @@ class SyncService {
    */
   private async syncTable(tableName: string) {
     const supabase = getSupabase();
-    
+
     // 1. Get unsynced records from local DB
-    const unsyncedRecords = await dbManager.find<any>(tableName, { synced: { $ne: true } });
+    const unsyncedRecords = await dbManager.find<any>(tableName, {
+      synced: { $ne: true },
+    });
 
     if (unsyncedRecords.length === 0) return;
 
-    log.info(`Syncing ${unsyncedRecords.length} records for table ${tableName}`);
+    log.info(
+      `Syncing ${unsyncedRecords.length} records for table ${tableName}`,
+    );
 
     for (const record of unsyncedRecords) {
       try {
         const { _id, synced, ...dataToSync } = record;
 
         // 2. Upsert to Supabase
-        const { error } = await supabase
-          .from(tableName)
-          .upsert(dataToSync);
+        const { error } = await supabase.from(tableName).upsert(dataToSync);
 
         if (error) {
           log.error(`Failed to sync record ${record._id} to Supabase`, error);
@@ -96,7 +174,11 @@ class SyncService {
         }
 
         // 3. Mark as synced locally
-        await dbManager.update(tableName, { _id: record._id }, { $set: { synced: true } });
+        await dbManager.update(
+          tableName,
+          { _id: record._id },
+          { $set: { synced: true } },
+        );
       } catch (err) {
         log.error(`Error processing record ${record._id}`, err);
       }
@@ -108,6 +190,24 @@ class SyncService {
    */
   public async syncNow() {
     await this.syncAllTables();
+  }
+
+  /**
+   * Notify that data has changed (called from IPC handlers)
+   */
+  public async notifyDataChange() {
+    await this.updateStatus();
+  }
+
+  /**
+   * Get current sync status
+   */
+  public getStatus(): SyncStatusUpdate {
+    return {
+      isOnline: this.isOnline,
+      lastSynced: this.lastSynced,
+      pendingChanges: this.pendingChanges,
+    };
   }
 }
 

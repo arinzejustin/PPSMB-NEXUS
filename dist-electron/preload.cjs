@@ -48,6 +48,7 @@ const appBridge = {
     navigateHistory: (action) => electron_1.ipcRenderer.invoke("app:navigateHistory", action),
     // Context menu
     openContextMenu: (cb) => on("open-context-menu", cb),
+    // Theme
     getSystemTheme: () => electron_1.ipcRenderer.invoke("theme:getSystemTheme"),
     onSystemThemeChange: (callback) => {
         electron_1.ipcRenderer.on("theme:system-changed", (_event, theme) => callback(theme));
@@ -55,6 +56,8 @@ const appBridge = {
             electron_1.ipcRenderer.removeAllListeners("theme:system-changed");
         };
     },
+    // Sync
+    onSyncStatusUpdate: (cb) => on("sync-status-update", cb),
 };
 try {
     electron_1.contextBridge.exposeInMainWorld("electronAPI", appBridge);

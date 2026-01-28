@@ -24,3 +24,11 @@ export interface NavItem {
   children?: NavItem[];
   badge?: number | string;
 }
+
+export interface SyncStatus {
+  isOnline: boolean;
+  lastSynced: Date;
+  pendingChanges: number;
+  isChecking: boolean;
+  connectionStrength: "excellent" | "good" | "poor" | "offline";
+}

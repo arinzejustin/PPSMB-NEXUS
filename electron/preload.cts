@@ -73,6 +73,8 @@ const appBridge: IElectronAPI = {
   // Context menu
   openContextMenu: (cb) =>
     on<Record<string, boolean | number | string>>("open-context-menu", cb),
+
+  // Theme
   getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
   onSystemThemeChange: (callback: (theme: string) => void) => {
     ipcRenderer.on("theme:system-changed", (_event, theme) => callback(theme));
@@ -80,6 +82,9 @@ const appBridge: IElectronAPI = {
       ipcRenderer.removeAllListeners("theme:system-changed");
     };
   },
+
+  // Sync
+  onSyncStatusUpdate: (cb: (status: { isOnline: boolean, lastSynced: Date, pendingChanges: number }) => void) => on("sync-status-update", cb),
 };
 
 try {

@@ -18,7 +18,7 @@ export default defineNuxtConfig({
           ? {
             "http-equiv": "Content-Security-Policy",
             content:
-              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' 'unsafe-inline'; frame-src 'self';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' https://api.ppsmb.com.ng; frame-src 'self';",
           }
           : {},
       ],
@@ -51,12 +51,12 @@ export default defineNuxtConfig({
     supabaseKey: "",
     public: {
       appType: "",
+      apiUrl: "",
     },
   },
   vite: {
     build: {
-      rollupOptions: {
-      },
+      rollupOptions: {},
     },
   },
   imports: {

@@ -21,7 +21,7 @@ export function useNavigationHistory() {
     }
 
     currentPath.value = to as string;
-    if (!to?.includes("/pin") || !to?.includes("/login"))
+    if (!to?.includes("/pin") && !to?.includes("/login") && to !== '/')
       setStorage("snapshot", to);
   }
 
