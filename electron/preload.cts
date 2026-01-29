@@ -4,7 +4,7 @@ import type { IElectronAPI, Unsubscribe } from "./types.js";
 
 function on<T = unknown>(
   channel: string,
-  handler: (data: T) => void
+  handler: (data: T) => void,
 ): Unsubscribe {
   const listener = (_event: unknown, data: T) => handler(data);
   ipcRenderer.on(channel, listener);
@@ -84,7 +84,18 @@ const appBridge: IElectronAPI = {
   },
 
   // Sync
-  onSyncStatusUpdate: (cb: (status: { isOnline: boolean, lastSynced: Date, pendingChanges: number }) => void) => on("sync-status-update", cb),
+  onSyncStatusUpdate: (
+    cb: (status: {
+      isOnline: boolean;
+      lastSynced: Date;
+      pendingChanges: number;
+    }) => void,
+  ) => on("sync-status-update", cb),
+
+  // Database change notifications
+  onDatabaseChange: (
+    cb: (event: { table: string; action: string; data?: any }) => void,
+  ) => on("database-change", cb),
 };
 
 try {

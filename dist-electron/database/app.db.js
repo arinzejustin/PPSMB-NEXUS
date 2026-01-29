@@ -1,5 +1,5 @@
 import Datastore from "@seald-io/nedb";
-import { safeStorage } from "electron";
+import { safeStorage, BrowserWindow } from "electron";
 import path from "node:path";
 import { app } from "electron";
 import fs from "node:fs";
@@ -12,6 +12,16 @@ class DatabaseManager {
         if (!fs.existsSync(this.dbDir)) {
             fs.mkdirSync(this.dbDir, { recursive: true });
         }
+    }
+    /**
+     * Broadcast database change to all renderer windows
+     */
+    broadcastChange(event) {
+        BrowserWindow.getAllWindows().forEach((win) => {
+            if (!win.isDestroyed()) {
+                win.webContents.send("database-change", event);
+            }
+        });
     }
     /**
      * Get or create a "table" (datastore)
@@ -69,10 +79,14 @@ class DatabaseManager {
         }
         return new Promise((resolve, reject) => {
             store.insert(doc, (err, newDoc) => {
-                if (err)
+                if (err) {
                     reject(err);
-                else
+                }
+                else {
+                    // Broadcast change to renderer
+                    this.broadcastChange({ table: tableName, action: "insert", data: newDoc });
                     resolve(newDoc);
+                }
             });
         });
     }
@@ -116,10 +130,16 @@ class DatabaseManager {
         const store = this.getTable(tableName);
         return new Promise((resolve, reject) => {
             store.update(query, update, options, (err, numReplaced) => {
-                if (err)
+                if (err) {
                     reject(err);
-                else
+                }
+                else {
+                    // Broadcast change to renderer
+                    if (numReplaced > 0) {
+                        this.broadcastChange({ table: tableName, action: "update", data: { query, update, count: numReplaced } });
+                    }
                     resolve(numReplaced);
+                }
             });
         });
     }
@@ -130,10 +150,16 @@ class DatabaseManager {
         const store = this.getTable(tableName);
         return new Promise((resolve, reject) => {
             store.remove(query, options, (err, numRemoved) => {
-                if (err)
+                if (err) {
                     reject(err);
-                else
+                }
+                else {
+                    // Broadcast change to renderer
+                    if (numRemoved > 0) {
+                        this.broadcastChange({ table: tableName, action: "delete", data: { query, count: numRemoved } });
+                    }
                     resolve(numRemoved);
+                }
             });
         });
     }

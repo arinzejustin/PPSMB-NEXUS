@@ -93,6 +93,7 @@ export interface IElectronAPI {
   getSystemTheme: () => Promise<"light" | "dark">;
   onSystemThemeChange: (cb: (theme: string) => void) => Unsubscribe;
   onSyncStatusUpdate: (cb: (status: { isOnline: boolean, lastSynced: Date, pendingChanges: number }) => void) => Unsubscribe;
+  onDatabaseChange: (cb: (event: { table: string; action: string; data?: any }) => void) => Unsubscribe;
 }
 
 export interface UpdateSchema {

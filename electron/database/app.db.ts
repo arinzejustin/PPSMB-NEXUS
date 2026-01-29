@@ -1,9 +1,15 @@
 import Datastore from "@seald-io/nedb";
-import { safeStorage } from "electron";
+import { safeStorage, BrowserWindow } from "electron";
 import path from "node:path";
 import { app } from "electron";
 import fs from "node:fs";
 import { generateUUID } from "../utils/uuid.js";
+
+export interface DatabaseChangeEvent {
+  table: string;
+  action: "insert" | "update" | "delete";
+  data?: any;
+}
 
 class DatabaseManager {
   private stores: Map<string, Datastore> = new Map();
@@ -14,6 +20,17 @@ class DatabaseManager {
     if (!fs.existsSync(this.dbDir)) {
       fs.mkdirSync(this.dbDir, { recursive: true });
     }
+  }
+
+  /**
+   * Broadcast database change to all renderer windows
+   */
+  private broadcastChange(event: DatabaseChangeEvent): void {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send("database-change", event);
+      }
+    });
   }
 
   /**
@@ -86,8 +103,13 @@ class DatabaseManager {
 
     return new Promise((resolve, reject) => {
       store.insert(doc as any, (err, newDoc) => {
-        if (err) reject(err);
-        else resolve(newDoc as T);
+        if (err) {
+          reject(err);
+        } else {
+          // Broadcast change to renderer
+          this.broadcastChange({ table: tableName, action: "insert", data: newDoc });
+          resolve(newDoc as T);
+        }
       });
     });
   }
@@ -143,8 +165,15 @@ class DatabaseManager {
     const store = this.getTable(tableName);
     return new Promise((resolve, reject) => {
       store.update(query, update, options, (err, numReplaced) => {
-        if (err) reject(err);
-        else resolve(numReplaced);
+        if (err) {
+          reject(err);
+        } else {
+          // Broadcast change to renderer
+          if (numReplaced > 0) {
+            this.broadcastChange({ table: tableName, action: "update", data: { query, update, count: numReplaced } });
+          }
+          resolve(numReplaced);
+        }
       });
     });
   }
@@ -160,8 +189,15 @@ class DatabaseManager {
     const store = this.getTable(tableName);
     return new Promise((resolve, reject) => {
       store.remove(query, options, (err, numRemoved) => {
-        if (err) reject(err);
-        else resolve(numRemoved);
+        if (err) {
+          reject(err);
+        } else {
+          // Broadcast change to renderer
+          if (numRemoved > 0) {
+            this.broadcastChange({ table: tableName, action: "delete", data: { query, count: numRemoved } });
+          }
+          resolve(numRemoved);
+        }
       });
     });
   }

@@ -58,6 +58,8 @@ const appBridge = {
     },
     // Sync
     onSyncStatusUpdate: (cb) => on("sync-status-update", cb),
+    // Database change notifications
+    onDatabaseChange: (cb) => on("database-change", cb),
 };
 try {
     electron_1.contextBridge.exposeInMainWorld("electronAPI", appBridge);
