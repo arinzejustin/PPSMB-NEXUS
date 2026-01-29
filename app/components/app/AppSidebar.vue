@@ -65,7 +65,7 @@ const navItems: NavItem[] = [
     id: 'dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
-    to: '/'
+    to: '/dashboard'
   },
   {
     id: 'teachers',

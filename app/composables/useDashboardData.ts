@@ -236,26 +236,27 @@ class DashboardDataManager {
    * Listens for database change broadcasts from main process
    */
   private async initElectron() {
+    await this.initWeb();
     // Load initial data from local database
-    await this.loadFromLocalDB();
+    // await this.loadFromLocalDB();
 
-    // Subscribe to database change events from Electron main process
-    if (window.electronAPI?.onDatabaseChange) {
-      this.unsubscribeElectron = window.electronAPI.onDatabaseChange(
-        (event: { table: string; action: string; data?: any }) => {
-          console.log("Database change detected:", event);
-          this.handleDatabaseChange(event);
-        },
-      );
-    }
+    // // Subscribe to database change events from Electron main process
+    // if (window.electronAPI?.onDatabaseChange) {
+    //   this.unsubscribeElectron = window.electronAPI.onDatabaseChange(
+    //     (event: { table: string; action: string; data?: any }) => {
+    //       console.log("Database change detected:", event);
+    //       this.handleDatabaseChange(event);
+    //     },
+    //   );
+    // }
 
-    // Set up periodic refresh (every 2 minutes for local data)
-    this.refreshInterval = setInterval(
-      () => {
-        this.loadFromLocalDB();
-      },
-      2 * 60 * 1000,
-    );
+    // // Set up periodic refresh (every 2 minutes for local data)
+    // this.refreshInterval = setInterval(
+    //   () => {
+    //     this.loadFromLocalDB();
+    //   },
+    //   2 * 60 * 1000,
+    // );
   }
 
   /**
@@ -317,7 +318,7 @@ class DashboardDataManager {
       );
 
       // Calculate zone distribution
-      const zoneDistribution = await this.calculateZoneDistribution(teachers);
+      const zoneDistribution = this.calculateZoneDistribution(teachers);
 
       // Update metrics
       const updatedMetrics = [...defaultMetrics];
@@ -423,15 +424,20 @@ class DashboardDataManager {
     this.error.value = null;
 
     try {
-      const response = await $fetch<{ data: DashboardData }>("/nn/api/dashboard", {
-        method: "GET",
-      });
+      const response = await $fetch<{ data: DashboardData }>(
+        "/nn/api/dashboard",
+        {
+          method: "GET",
+        },
+      );
 
       if (response?.data) {
         this.data.value = {
           ...response.data,
           lastUpdated: new Date(),
         };
+      } else {
+        await this.loadMockData();
       }
     } catch (err: any) {
       console.error("Failed to load dashboard data from API:", err);
@@ -734,7 +740,7 @@ class DashboardDataManager {
         url: wsUrl,
         autoConnect: true,
         autoReconnect: true,
-        maxRetries: -1, // Infinite retries
+        maxRetries: -1,
         reconnectDelay: 2000,
         maxReconnectDelay: 30000,
         heartbeat: true,

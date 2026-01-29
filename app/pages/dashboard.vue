@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
-import { definePageMeta, useHead, useRuntimeConfig } from '#imports';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { definePageMeta, useHead, useRuntimeConfig, showToast } from '#imports';
 import { useUser } from '@/composables/states';
 import { useSyncStatus } from '@/composables/useSyncStatus';
 import { useDashboardData } from '@/composables/useDashboardData';
@@ -56,6 +56,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -82,6 +92,7 @@ import {
   Filler
 } from 'chart.js';
 import { format, formatDistanceToNow } from 'date-fns';
+import { setStorage, getStorage } from "@/lib/storage"
 
 ChartJS.register(
   CategoryScale,
@@ -111,6 +122,8 @@ definePageMeta({
 const currentTime = ref(new Date());
 const timeInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const showSyncDetails = ref(false);
+const showQuickActionsDialog = ref(false);
+
 
 const { status: syncStatus, formatLastSynced, statusColor, forceCheck } = useSyncStatus();
 const {
@@ -387,9 +400,10 @@ const syncStatusText = computed(() => {
   }
 });
 
-// Quick actions with enhanced styling
-const quickActions = [
+// All available quick actions
+const allQuickActions = [
   {
+    id: 'add-teacher',
     label: 'Add Teacher',
     icon: UserPlus,
     to: '/staff/new',
@@ -398,6 +412,7 @@ const quickActions = [
     shortcut: 'Ctrl+N'
   },
   {
+    id: 'scan-document',
     label: 'Scan Document',
     icon: ScanLine,
     to: '/documents/scan',
@@ -407,6 +422,7 @@ const quickActions = [
     desktopOnly: true
   },
   {
+    id: 'process-transfer',
     label: 'Process Transfer',
     icon: ArrowLeftRight,
     to: '/staff/transfers',
@@ -415,6 +431,7 @@ const quickActions = [
     shortcut: 'Ctrl+T'
   },
   {
+    id: 'generate-report',
     label: 'Generate Report',
     icon: BarChart2,
     to: '/reports/',
@@ -423,6 +440,7 @@ const quickActions = [
     shortcut: 'Ctrl+R'
   },
   {
+    id: 'send-mail',
     label: 'Send Mail',
     icon: Send,
     to: '/mail/compose',
@@ -431,6 +449,7 @@ const quickActions = [
     shortcut: 'Ctrl+M'
   },
   {
+    id: 'evaluation',
     label: 'Evaluation',
     icon: ClipboardList,
     to: '/evaluations/new',
@@ -440,16 +459,86 @@ const quickActions = [
   }
 ];
 
-// Filter quick actions based on platform
-const filteredQuickActions = computed(() => {
-  return quickActions.filter(action => {
-    if (action.desktopOnly && !isDesktop.value) return false;
+// Get available actions based on platform (exclude desktop-only on web)
+const availableQuickActions = computed(() => {
+  return allQuickActions.filter(action => {
+    if (action.desktopOnly && !window.electronAPI) return false;
     return true;
   });
 });
 
+const selectedQuickActionIds = ref<string[]>([]);
+const tempSelectedIds = ref<string[]>([]);
 
-// Helper functions
+const displayedQuickActions = computed(() => {
+  return availableQuickActions.value
+    .filter(action => selectedQuickActionIds.value.includes(action.id))
+    .slice(0, 4);
+});
+
+const loadQuickActionsFromStorage = () => {
+  try {
+    const saved = getStorage<string[]>('dashboard_quick_actions');
+    if (saved) {
+      const validIds = saved.filter(id =>
+        availableQuickActions.value.some(action => action.id === id)
+      );
+      selectedQuickActionIds.value = validIds.slice(0, 4);
+    } else {
+      selectedQuickActionIds.value = availableQuickActions.value
+        .slice(0, 4)
+        .map(a => a.id);
+    }
+  } catch (e) {
+    selectedQuickActionIds.value = availableQuickActions.value
+      .slice(0, 4)
+      .map(a => a.id);
+  }
+};
+
+const saveQuickActionsToStorage = () => {
+  try {
+    setStorage('dashboard_quick_actions', selectedQuickActionIds.value);
+  } catch (e) {
+    showToast('Failed to customize quick actions!', 'warning');
+  }
+};
+
+const openCustomizeDialog = () => {
+  tempSelectedIds.value = [...selectedQuickActionIds.value];
+  showQuickActionsDialog.value = true;
+};
+
+const toggleActionSelection = (actionId: string) => {
+  const index = tempSelectedIds.value.indexOf(actionId);
+  if (index > -1) {
+    tempSelectedIds.value.splice(index, 1);
+  } else {
+    if (tempSelectedIds.value.length < 4) {
+      tempSelectedIds.value.push(actionId);
+    }
+  }
+};
+
+const isActionSelected = (actionId: string) => {
+  return tempSelectedIds.value.includes(actionId);
+};
+const canSelectMore = computed(() => {
+  return tempSelectedIds.value.length < 4;
+});
+
+const saveQuickActionsCustomization = () => {
+  selectedQuickActionIds.value = [...tempSelectedIds.value];
+  saveQuickActionsToStorage();
+  showQuickActionsDialog.value = false;
+};
+
+const cancelQuickActionsCustomization = () => {
+  showQuickActionsDialog.value = false;
+  tempSelectedIds.value = [];
+};
+
+
 const getActivityStatusColor = (status: string) => {
   switch (status) {
     case 'success': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
@@ -547,7 +636,8 @@ onMounted(() => {
   timeInterval.value = setInterval(() => {
     currentTime.value = new Date();
   }, 1000);
-  console.log(recentActivity)
+  // Load quick actions from localStorage
+  loadQuickActionsFromStorage();
 });
 
 onUnmounted(() => {
@@ -692,27 +782,17 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- KPI Cards - Premium Glass Design -->
-    <p
-      class="text-muted-foreground my-0 mb-1.5 cursor-pointer hover:text-primary flex text-sm justify-end hover:underline items-center">
-      Customize
-      <ChevronRight class="w-4 h-4 ml-1" />
-    </p>
-    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card v-for="kpi in metrics" :key="kpi.id"
         class="relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 border-0 bg-linear-to-br from-background to-muted/30"
         :class="{ 'cursor-pointer': kpi.route }" @click="kpi.route && $router.push(kpi.route)">
-        <!-- Badge for Coming Soon features -->
         <Badge v-if="kpi.badge" variant="secondary" class="absolute top-2 right-2 z-10 text-[10px] px-1.5">
           {{ kpi.badge }}
         </Badge>
 
-        <!-- Gradient Background -->
         <div
           :class="['absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br', kpi.bgGradient]">
         </div>
-
-        <!-- Decorative Corner -->
         <div :class="['absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-10 bg-linear-to-br', kpi.gradient]">
         </div>
 
@@ -772,18 +852,18 @@ onUnmounted(() => {
               <Zap class="w-5 h-5 text-amber-500" />
               Quick Actions
             </CardTitle>
-            <CardDescription>Frequently used operations at your fingertips</CardDescription>
+            <CardDescription class="mt-1.5">Frequently used operations at your fingertips</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" class="text-muted-foreground">
+          <Button variant="ghost" size="sm" class="text-muted-foreground" @click="openCustomizeDialog">
             Customize
             <ChevronRight class="w-4 h-4 ml-1" />
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
           <TooltipProvider>
-            <NuxtLink v-for="action in filteredQuickActions" :key="action.label" :to="action.to"
+            <NuxtLink v-for="action in displayedQuickActions" :key="action.id" :to="action.to"
               class="group relative overflow-hidden rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl">
               <!-- Gradient Background -->
               <div
@@ -805,7 +885,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Keyboard shortcut hint -->
-              <Tooltip>
+              <Tooltip v-if="isDesktop">
                 <TooltipTrigger as-child>
                   <div
                     class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white/50 font-mono">
@@ -823,8 +903,69 @@ onUnmounted(() => {
             </NuxtLink>
           </TooltipProvider>
         </div>
+
+        <!-- Empty state when no actions selected -->
+        <div v-if="displayedQuickActions.length === 0" class="text-center py-8">
+          <Zap class="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
+          <p class="text-muted-foreground text-sm">No quick actions selected</p>
+          <Button variant="outline" size="sm" class="mt-3" @click="openCustomizeDialog">
+            Choose Actions
+          </Button>
+        </div>
       </CardContent>
     </Card>
+
+    <Dialog :open="showQuickActionsDialog" @update:open="val => !val && cancelQuickActionsCustomization()">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <Zap class="w-5 h-5 text-amber-500" />
+            Customize Quick Actions
+          </DialogTitle>
+          <DialogDescription>
+            Select up to {{ 4 }} quick actions to display on your dashboard.
+            <span
+              :class="['font-medium ml-1', tempSelectedIds.length >= 4 ? 'text-amber-600' : 'text-muted-foreground']">
+              ({{ tempSelectedIds.length }}/{{ 4 }} selected)
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="grid gap-3 py-4 max-h-[360px] overflow-y-auto">
+          <div v-for="action in availableQuickActions" :key="action.id" :class="[
+            'flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer',
+            isActionSelected(action.id)
+              ? 'border-primary/50 bg-primary/5'
+              : 'border-border hover:border-primary/30 hover:bg-muted/30',
+            !isActionSelected(action.id) && !canSelectMore ? 'opacity-50 cursor-not-allowed' : ''
+          ]" @click="toggleActionSelection(action.id)">
+            <div :class="['p-2 rounded-lg bg-linear-to-br text-white', action.gradient]">
+              <component :is="action.icon" class="w-4 h-4" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <Label :for="action.id" class="font-medium text-sm cursor-pointer">
+                {{ action.label }}
+              </Label>
+              <p class="text-xs text-muted-foreground truncate">{{ action.description }}</p>
+            </div>
+            <Badge v-if="action.desktopOnly" variant="outline" class="text-[10px] shrink-0">
+              Desktop
+            </Badge>
+          </div>
+        </div>
+
+        <DialogFooter class="gap-2 gap-x-4">
+          <Button variant="outline" @click="cancelQuickActionsCustomization">
+            Cancel
+          </Button>
+          <Button @click="saveQuickActionsCustomization"
+            class="bg-linear-to-tl bg-transparent from-primary to-primary/40 hover:bg-linear-to-br"
+            :disabled="tempSelectedIds.length === 0">
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Charts Row -->
     <div class="grid gap-6 lg:grid-cols-3">
@@ -943,7 +1084,6 @@ onUnmounted(() => {
         </CardHeader>
         <CardContent>
           <ScrollArea class="h-80 pr-4">
-            {{ recentActivity }}{{ zones[0]!.teacherCount }}
             <div class="space-y-4">
               <template v-if="isLoading">
                 <div v-for="i in 4" :key="i" class="flex items-start gap-3">
