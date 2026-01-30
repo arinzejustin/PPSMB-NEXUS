@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { definePageMeta, useHead, useRuntimeConfig, showToast } from '#imports';
-import { useUser } from '@/composables/states';
+import { useUser } from '~/composables/useUserStates';
 import { useSyncStatus } from '@/composables/useSyncStatus';
 import { useDashboardData } from '@/composables/useDashboardData';
 import {
@@ -649,19 +649,15 @@ onUnmounted(() => {
 
 <template>
   <div class="space-y-6 pb-8">
-    <!-- Premium Page Header with Welcome & Sync Status -->
     <div
       class="relative overflow-hidden rounded-2xl bg-linear-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6">
-      <!-- Decorative Elements -->
       <div
         class="absolute top-0 right-0 w-64 h-64 bg-linear-to-br from-primary/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2">
       </div>
       <div
         class="absolute bottom-0 left-0 w-48 h-48 bg-linear-to-tr from-primary/10 to-transparent rounded-full blur-2xl translate-y-1/2 -translate-x-1/2">
       </div>
-
       <div class="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <!-- Welcome Section -->
         <div class="space-y-2">
           <div class="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar class="w-4 h-4" />
@@ -678,10 +674,7 @@ onUnmounted(() => {
             <span class="text-muted-foreground text-sm">{{ pendingTasksSummary }}</span>
           </div>
         </div>
-
-        <!-- Sync Status & Actions -->
         <div class="flex flex-col items-end gap-3">
-          <!-- Main Sync Status Card -->
           <div
             class="relative bg-muted/50 backdrop-blur-sm rounded-xl p-4 border border-border/50 cursor-pointer hover:bg-muted/70 transition-all min-w-[280px]"
             @click="showSyncDetails = !showSyncDetails">
@@ -717,8 +710,6 @@ onUnmounted(() => {
                 ]" />
               </div>
             </div>
-
-            <!-- Expanded Sync Details -->
             <div v-if="showSyncDetails" class="mt-4 pt-4 border-t border-border/50 space-y-3">
               <div class="flex items-center justify-between text-sm">
                 <span class="text-muted-foreground">Connection</span>
@@ -735,8 +726,6 @@ onUnmounted(() => {
               </Button>
             </div>
           </div>
-
-          <!-- Action Buttons -->
           <div class="flex items-center gap-2">
             <Button variant="outline" size="sm" @click="refreshData" :disabled="isLoading" class="rounded-full">
               <RefreshCw :class="['w-4 h-4 mr-2', isLoading ? 'animate-spin' : '']" />

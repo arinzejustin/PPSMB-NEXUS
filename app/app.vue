@@ -1,8 +1,10 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { navigateTo, useRoute, useUser, useToken, showToast } from '#imports';
+import { navigateTo, useRoute, showToast } from '#imports';
 import { useTheme } from '@/composables/useTheme';
 import { useLockWindow } from '@/composables/useLockWindow';
+import { useSyncStatus } from '@/composables/useSyncStatus';
+import { useToken, useUser } from "~/composables/useUserStates"
 import { ArrowDownIcon, Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner } from 'lucide-vue-next'
 import { Button } from "@/components/ui/button";
 import { Progress } from '@/components/ui/progress';
@@ -35,6 +37,7 @@ export default defineComponent({
     const token = useToken();
     const { theme } = useTheme();
     const { lockSession } = useLockWindow();
+    const { cleanup } = useSyncStatus()
 
     const refreshToken = async () => {
       try {
@@ -51,7 +54,8 @@ export default defineComponent({
       token,
       refreshToken,
       theme,
-      lockSession
+      lockSession,
+      cleanup
     }
   },
 
@@ -265,8 +269,6 @@ export default defineComponent({
     },
   },
 
-
-
   async mounted() {
     if (!import.meta.client) return;
 
@@ -332,6 +334,7 @@ export default defineComponent({
     if (window.electronAPI) {
       window.removeEventListener("keydown", this.handleKeydown);
     }
+    this.cleanup();
   },
 });
 

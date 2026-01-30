@@ -26,7 +26,7 @@ import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import Theme from '@/components/app/Theme.vue';
-import { useUser, useToken } from '@/composables/states';
+import { useUser, useToken } from '~/composables/useUserStates';
 import { logOut } from '@/composables/logout';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { useNavigationHistory } from '@/composables/useNavigationHistory';

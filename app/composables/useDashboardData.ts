@@ -727,7 +727,7 @@ class DashboardDataManager {
    */
   private setupWebSocket() {
     const env = useRuntimeConfig();
-    const wsUrl = env.public.wsUrl as string;
+    const wsUrl = env.public.wsUrl;
 
     if (!wsUrl) {
       console.log("WebSocket URL not configured, skipping real-time updates");

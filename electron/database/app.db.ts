@@ -54,7 +54,6 @@ class DatabaseManager {
         return safeStorage.decryptString(buffer);
       },
     });
-    store.persistence.setAutocompactionInterval(24 * 60 * 60 * 1000);
     this.stores.set(tableName, store);
     return store;
   }

@@ -22,12 +22,10 @@ class SyncService {
    */
   private async checkConnection(): Promise<boolean> {
     try {
-      // Ping Google DNS as a reliable server (or use your own server)
       await axios.get("https://8.8.8.8", { timeout: 3000 });
       return true;
     } catch {
       try {
-        // Fallback: try to ping Google
         await axios.head("https://www.google.com", { timeout: 3000 });
         return true;
       } catch {
@@ -48,7 +46,6 @@ class SyncService {
         const count = await dbManager.count(table, { synced: { $ne: true } });
         total += count;
       } catch {
-        // Table might not exist yet
       }
     }
 

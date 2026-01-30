@@ -1,9 +1,10 @@
 import { ref, onUnmounted, computed, readonly } from "vue";
+import { useRoute } from "#imports";
 import { syncQueue, isElectron } from "@/lib/db";
 import type { SyncStatus } from "@/types";
 
 const env = useRuntimeConfig();
-
+const route = useRoute();
 const API_URL = env.public.apiUrl;
 
 class SyncStatusManager {
@@ -27,7 +28,8 @@ class SyncStatusManager {
   }
 
   private async init() {
-    if (this.isInitialized) return;
+    if (this.isInitialized || route.path === "/login" || route.path === "/pin")
+      return;
     this.isInitialized = true;
 
     if (isElectron()) {
@@ -38,7 +40,7 @@ class SyncStatusManager {
   }
 
   private setupElectronListeners() {
-    if (window.electronAPI?.onSyncStatusUpdate) {
+    if (window.electronAPI.onSyncStatusUpdate) {
       this.unsubscribeElectron = window.electronAPI.onSyncStatusUpdate(
         (status) => {
           this.status.value = {
@@ -144,7 +146,6 @@ class SyncStatusManager {
         this.status.value.connectionStrength =
           this.getConnectionStrength(latency);
 
-        // For web, update lastSynced to now when online
         if (!isElectron()) {
           this.status.value.lastSynced = new Date();
         }
@@ -153,7 +154,6 @@ class SyncStatusManager {
         this.status.value.connectionStrength = "offline";
       }
     } catch {
-      // Try fallback check using navigator.onLine
       const isOnline =
         typeof navigator !== "undefined" ? navigator.onLine : false;
       this.status.value.isOnline = isOnline;
@@ -208,7 +208,6 @@ class SyncStatusManager {
   }
 }
 
-// Singleton instance
 let syncManager: SyncStatusManager | null = null;
 
 function getSyncManager(): SyncStatusManager {
@@ -221,6 +220,7 @@ function getSyncManager(): SyncStatusManager {
 export function useSyncStatus() {
   const manager = getSyncManager();
   const status = manager.getStatusRef();
+  const cleanup = () => manager.cleanup();
 
   const formatLastSynced = computed(() => {
     const diff = Date.now() - status.value.lastSynced.getTime();
@@ -296,11 +296,6 @@ export function useSyncStatus() {
 
   const markSynced = (ids: string[]) => manager.markSynced(ids);
 
-  onUnmounted(() => {
-    // Don't cleanup singleton on component unmount
-    // Only cleanup when app is destroyed
-  });
-
   return {
     status,
     formatLastSynced,
@@ -311,5 +306,6 @@ export function useSyncStatus() {
     clearPendingChanges,
     markSynced,
     isElectron: isElectron(),
+    cleanup,
   };
 }
