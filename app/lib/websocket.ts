@@ -29,7 +29,12 @@ export class WebSocketClient {
   private options: Required<
     Omit<
       WebSocketOptions,
-      "token" | "protocols" | "onConnected" | "onDisconnected" | "onError" | "onMessage"
+      | "token"
+      | "protocols"
+      | "onConnected"
+      | "onDisconnected"
+      | "onError"
+      | "onMessage"
     >
   > &
     Pick<
@@ -108,7 +113,6 @@ export class WebSocketClient {
         this._isConnected.value = true;
         this._status.value = "OPEN";
         this.reconnectAttempts.value = 0;
-        console.log("WebSocket: Connected to", this._url);
         this.flushMessageQueue();
         this.options.onConnected?.(ws);
       },
@@ -391,16 +395,22 @@ const wsInstances: Map<string, WebSocketClient> = new Map();
 
 /**
  * Get or create a WebSocket client instance
- * Uses a singleton pattern per URL to prevent duplicate connections
+ * Uses a singleton pattern per BASE URL (ignoring token) to prevent duplicate connections
  */
 export function getWebSocketClient(options: WebSocketOptions): WebSocketClient {
-  const key = options.url;
-
-  if (!wsInstances.has(key)) {
-    wsInstances.set(key, new WebSocketClient(options));
+  // Use base URL without token as the key to ensure singleton per endpoint
+  const baseUrl = options.url.split('?')[0] as string;
+  
+  // If we already have a connection to this endpoint, return it
+  const existing = wsInstances.get(baseUrl);
+  if (existing) {
+    return existing;
   }
 
-  return wsInstances.get(key)!;
+  // Create new connection
+  const client = new WebSocketClient(options);
+  wsInstances.set(baseUrl, client);
+  return client;
 }
 
 /**

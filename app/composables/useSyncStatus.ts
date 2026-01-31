@@ -3,6 +3,8 @@ import { useRoute } from "#imports";
 import { syncQueue, isElectron } from "@/lib/db";
 import type { SyncStatus } from "@/types";
 
+const FORBIDDEN_ROUTES = ["/", "/login", "/pin"];
+
 class SyncStatusManager {
   private status = ref<SyncStatus>({
     isOnline: typeof navigator !== "undefined" ? navigator.onLine : false,
@@ -25,8 +27,7 @@ class SyncStatusManager {
 
   private async init() {
     const route = useRoute();
-    if (this.isInitialized || route.path === "/login" || route.path === "/pin")
-      return;
+    if (this.isInitialized || FORBIDDEN_ROUTES.includes(route.path)) return;
     this.isInitialized = true;
 
     if (isElectron()) {
@@ -51,6 +52,7 @@ class SyncStatusManager {
         },
       );
     }
+    this.startConnectionCheck();
   }
 
   private async setupWebListeners() {

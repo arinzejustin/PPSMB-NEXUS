@@ -213,8 +213,8 @@ export default defineComponent({
     },
 
     resolveElectronAuthRoute(): { url: string; user: (UserDetails & { authenticated: boolean }) | null } {
-      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;      // 30 days
-      const CREDENTIALS_TTL = 180 * 24 * 60 * 60 * 1000; // 180 days
+      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
+      const CREDENTIALS_TTL = 180 * 24 * 60 * 60 * 1000;
       const now = Date.now();
 
       const hasLoggedIn = getStorage<boolean>('hasLoggedIn');

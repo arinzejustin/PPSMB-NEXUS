@@ -469,10 +469,10 @@ class DashboardDataManager {
     } as DashboardMetric;
     mockMetrics[1] = {
       ...mockMetrics[1],
-      value: "52,340",
-      change: "+234",
-      changePercent: "+0.4%",
-      changeType: "increase",
+      value: "0",
+      change: "0",
+      changePercent: "0%",
+      changeType: "neutral",
     } as DashboardMetric;
     mockMetrics[2] = {
       ...mockMetrics[2],
@@ -508,7 +508,7 @@ class DashboardDataManager {
         administrator: "Mrs. Adaobi Nwankwo",
         teacherCount: 847,
         schoolCount: 28,
-        studentCount: 8234,
+        studentCount: 0,
         pendingItems: 3,
         health: "healthy",
         lastSync: new Date(),
@@ -521,7 +521,7 @@ class DashboardDataManager {
         administrator: "Mr. Chukwuemeka Obi",
         teacherCount: 50,
         schoolCount: 30,
-        studentCount: 9156,
+        studentCount: 0,
         pendingItems: 1,
         health: "healthy",
         lastSync: new Date(),
@@ -534,7 +534,7 @@ class DashboardDataManager {
         administrator: "Mrs. Ngozi Eze",
         teacherCount: 756,
         schoolCount: 19,
-        studentCount: 7823,
+        studentCount: 0,
         pendingItems: 5,
         health: "attention",
         lastSync: new Date(),
@@ -547,7 +547,7 @@ class DashboardDataManager {
         administrator: "Dr. Emeka Nnamdi",
         teacherCount: 1024,
         schoolCount: 31,
-        studentCount: 11234,
+        studentCount: 0,
         pendingItems: 2,
         health: "healthy",
         lastSync: new Date(),
@@ -560,7 +560,7 @@ class DashboardDataManager {
         administrator: "Mr. Ikechukwu Okoro",
         teacherCount: 689,
         schoolCount: 18,
-        studentCount: 6892,
+        studentCount: 0,
         pendingItems: 0,
         health: "healthy",
         lastSync: new Date(),
@@ -573,7 +573,7 @@ class DashboardDataManager {
         administrator: "Mrs. Chioma Ugwu",
         teacherCount: 1008,
         schoolCount: 22,
-        studentCount: 9001,
+        studentCount: 0,
         pendingItems: 4,
         health: "healthy",
         lastSync: new Date(),
@@ -632,34 +632,34 @@ class DashboardDataManager {
     ];
 
     const mockAlerts: AlertItem[] = [
-      {
-        id: "1",
-        severity: "critical",
-        title: "5 Teacher Certifications Expiring This Week",
-        description: "TRCN certifications for 5 teachers expire within 7 days",
-        actionLabel: "View Details",
-        actionRoute: "/certifications/expiring",
-        dismissable: true,
-        createdAt: new Date(),
-      },
-      {
-        id: "2",
-        severity: "warning",
-        title: "3 Pending Transfer Approvals Overdue",
-        description: "Transfer requests awaiting approval for over 7 days",
-        actionLabel: "Review Now",
-        actionRoute: "/staff/transfers",
-        dismissable: true,
-        createdAt: new Date(),
-      },
-      {
-        id: "3",
-        severity: "info",
-        title: "System Maintenance Scheduled",
-        description: "Scheduled maintenance on Feb 5, 2026 at 2:00 AM",
-        dismissable: true,
-        createdAt: new Date(),
-      },
+      // {
+      //   id: "1",
+      //   severity: "critical",
+      //   title: "5 Teacher Certifications Expiring This Week",
+      //   description: "TRCN certifications for 5 teachers expire within 7 days",
+      //   actionLabel: "View Details",
+      //   actionRoute: "/certifications/expiring",
+      //   dismissable: true,
+      //   createdAt: new Date(),
+      // },
+      // {
+      //   id: "2",
+      //   severity: "warning",
+      //   title: "3 Pending Transfer Approvals Overdue",
+      //   description: "Transfer requests awaiting approval for over 7 days",
+      //   actionLabel: "Review Now",
+      //   actionRoute: "/staff/transfers",
+      //   dismissable: true,
+      //   createdAt: new Date(),
+      // },
+      // {
+      //   id: "3",
+      //   severity: "info",
+      //   title: "System Maintenance Scheduled",
+      //   description: "Scheduled maintenance on Feb 5, 2026 at 2:00 AM",
+      //   dismissable: true,
+      //   createdAt: new Date(),
+      // },
     ];
 
     const mockEvents: EventItem[] = [
@@ -731,14 +731,14 @@ class DashboardDataManager {
     const wsUrl = env.public.wsUrl;
 
     if (!wsUrl) {
-      console.log("WebSocket URL not configured, skipping real-time updates");
+      this.isInitialized = false;
       return;
     }
 
     // Get JWT token for authentication
     const user = useUser();
     if (!user.value?.token) {
-      console.log("No auth token available, skipping WebSocket connection");
+      this.isInitialized = false;
       return;
     }
 

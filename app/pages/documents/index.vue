@@ -21,7 +21,8 @@ import {
     FolderOpen,
     Calendar,
     Tag,
-    MonitorDown
+    MonitorDown,
+    User
 } from 'lucide-vue-next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -274,6 +275,10 @@ const getCategoryLabel = (value: string) => {
             </div>
             <div class="flex items-center gap-2">
                 <Button variant="outline" size="sm">
+                    <User class="w-4 h-4 mr-2" />
+                    Chairman's Documents
+                </Button>
+                <Button variant="outline" size="sm">
                     <Upload class="w-4 h-4 mr-2" />
                     Upload
                 </Button>
@@ -300,8 +305,12 @@ const getCategoryLabel = (value: string) => {
             </CardContent>
         </Card>
         <div class="grid gap-4 md:grid-cols-4">
-            <Card>
-                <CardContent class="pt-6">
+            <Card
+                class="relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 border-0 bg-linear-to-br from-background to-muted/30">
+                <div
+                    :class="['absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-blue-500/10 to-indigo-500/5']">
+                </div>
+                <CardContent class="pt-6 relative">
                     <div class="flex items-center gap-4">
                         <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
                             <FileText class="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -312,12 +321,19 @@ const getCategoryLabel = (value: string) => {
                         </div>
                     </div>
                 </CardContent>
+                <div
+                    class="absolute inset-0 bg-linear-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                </div>
             </Card>
-            <Card>
-                <CardContent class="pt-6">
+            <Card
+                class="relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 border-0 bg-linear-to-br from-background to-muted/30">
+                <div
+                    :class="['absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-pink-500/10 to-purple-500/5']">
+                </div>
+                <CardContent class="pt-6 relative">
                     <div class="flex items-center gap-4">
-                        <div class="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                            <CheckCircle2 class="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <FileText class="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
                             <p class="text-2xl font-bold">{{ stats.completed }}</p>
@@ -325,9 +341,16 @@ const getCategoryLabel = (value: string) => {
                         </div>
                     </div>
                 </CardContent>
+                <div
+                    class="absolute inset-0 bg-linear-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                </div>
             </Card>
-            <Card>
-                <CardContent class="pt-6">
+            <Card
+                class="relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 border-0 bg-linear-to-br from-background to-muted/30">
+                <div
+                    :class="['absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-violet-500/10 to-purple-500/5']">
+                </div>
+                <CardContent class="pt-6 relative">
                     <div class="flex items-center gap-4">
                         <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
                             <Loader2 class="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
@@ -338,9 +361,16 @@ const getCategoryLabel = (value: string) => {
                         </div>
                     </div>
                 </CardContent>
+                <div
+                    class="absolute inset-0 bg-linear-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                </div>
             </Card>
-            <Card>
-                <CardContent class="pt-6">
+            <Card
+                class="relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 border-0 bg-linear-to-br from-background to-muted/30">
+                <div
+                    :class="['absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-amber-500/10 to-orange-500/5']">
+                </div>
+                <CardContent class="pt-6 relative">
                     <div class="flex items-center gap-4">
                         <div class="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
                             <XCircle class="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -351,6 +381,9 @@ const getCategoryLabel = (value: string) => {
                         </div>
                     </div>
                 </CardContent>
+                <div
+                    class="absolute inset-0 bg-linear-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                </div>
             </Card>
         </div>
 

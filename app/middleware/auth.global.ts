@@ -6,12 +6,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   if (user.value?.isAuthenticated) return;
 
-  const publicRoutes = ["/login", "/pin"];
+  const publicRoutes = ["/login", "/pin", "/"];
   const isPublicRoute = publicRoutes.includes(to.path);
   const redirectTo = encodeURIComponent(to.path);
 
   if (!isPublicRoute) {
-    console.log("..");
     try {
       const data = await $fetch<UserDetails & Auth>(
         "/api/auth/me?to=" + from.path,

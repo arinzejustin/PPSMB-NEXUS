@@ -121,6 +121,10 @@ const toggleCollapse = () => {
   emit("isCollapsed", isCollapsed.value)
 };
 
+defineExpose({
+  toggleCollapse
+})
+
 const toggleSubmenu = (id: string) => {
   const index = expandedMenus.value.indexOf(id);
   if (index > -1) {
@@ -197,10 +201,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="0">
+  <TooltipProvider :delay-duration="10">
     <aside :class="[
-      'fixed left-0 top-0 z-40 h-screen flex flex-col bg-linear-to-b from-background via-background to-background/95 shadow-2xl border-r border-sidebar-border/50 transition-all duration-300 backdrop-blur-sm',
-      isCollapsed ? 'w-17.5' : 'w-72'
+      'fixed top-0 z-40 h-screen flex flex-col bg-linear-to-b from-background via-background to-background/95 shadow-2xl border-r border-sidebar-border/50 transition-all duration-300 backdrop-blur-sm',
+      isCollapsed ? 'w-0 -left-40 md:w-17.5 md:left-0' : 'w-72'
     ]">
       <div class="relative flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/70">
         <div class="absolute inset-0 bg-linear-to-r from-primary/5 via-transparent to-primary/5 pointer-events-none">

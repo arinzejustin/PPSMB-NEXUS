@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"time"
-	"log"
 )
 
 // SecurityConfig holds all security-related configuration
@@ -34,9 +33,6 @@ func LoadSecurityConfig() *SecurityConfig {
 	if jwtSecret == "" {
 		panic("JWT_SECRET environment variable is required")
 	}
-
-	log.Printf(internalSecret)
-	log.Printf(jwtSecret)
 
 	return &SecurityConfig{
 		InternalSecret:               []byte(internalSecret),
