@@ -1,11 +1,7 @@
-import { ref, onUnmounted, computed, readonly } from "vue";
+import { ref, computed, readonly } from "vue";
 import { useRoute } from "#imports";
 import { syncQueue, isElectron } from "@/lib/db";
 import type { SyncStatus } from "@/types";
-
-const env = useRuntimeConfig();
-const route = useRoute();
-const API_URL = env.public.apiUrl;
 
 class SyncStatusManager {
   private status = ref<SyncStatus>({
@@ -28,6 +24,7 @@ class SyncStatusManager {
   }
 
   private async init() {
+    const route = useRoute();
     if (this.isInitialized || route.path === "/login" || route.path === "/pin")
       return;
     this.isInitialized = true;
@@ -125,6 +122,8 @@ class SyncStatusManager {
   }
 
   private async checkServerConnection(): Promise<void> {
+    const env = useRuntimeConfig();
+    const API_URL = env.public.apiUrl;
     this.status.value.isChecking = true;
 
     try {
