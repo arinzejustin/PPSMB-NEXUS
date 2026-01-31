@@ -16,7 +16,7 @@ export default defineEventHandler((event): TokenResponse => {
     jwtid: sessionId,
   };
 
-  const token = jwt.sign({ ssid:sessionId }, jwtSecret, signOptions);
+  const token = jwt.sign({ ssid: sessionId }, jwtSecret, signOptions);
 
   const cookieOptions = {
     httpOnly: true,

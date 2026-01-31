@@ -1,6 +1,7 @@
 import { ref, computed, readonly } from "vue";
 import { db, isElectron } from "@/lib/db";
 import { useWebSocketClient } from "@/lib/websocket";
+import { useUser } from "@/composables/useUserStates";
 import type {
   DashboardMetric,
   ZoneData,
@@ -734,10 +735,18 @@ class DashboardDataManager {
       return;
     }
 
+    // Get JWT token for authentication
+    const user = useUser();
+    if (!user.value?.token) {
+      console.log("No auth token available, skipping WebSocket connection");
+      return;
+    }
+
     try {
-      // Use the WebSocket client library
+      // Use the WebSocket client library with auth token
       this.wsConnection = useWebSocketClient({
         url: wsUrl,
+        token: user.value?.token,
         autoConnect: true,
         autoReconnect: true,
         maxRetries: -1,
@@ -746,7 +755,7 @@ class DashboardDataManager {
         heartbeat: true,
         heartbeatInterval: 30000,
         onConnected: () => {
-          console.log("Dashboard WebSocket connected");
+          console.log("Dashboard WebSocket connected (authenticated)");
           // Subscribe to dashboard updates channel
           this.wsConnection?.subscribe("dashboard");
         },

@@ -2,7 +2,6 @@ package response
 
 import "github.com/gofiber/fiber/v2"
 
-// Response represents a standard API response
 type Response struct {
 	Status bool        `json:"status"`
 	Message string      `json:"message,omitempty"`
@@ -24,6 +23,7 @@ func Error(c *fiber.Ctx, status int, message string) error {
 	return c.Status(status).JSON(Response{
 		Status: false,
 		Error:   message,
+		Message: message,
 	})
 }
 

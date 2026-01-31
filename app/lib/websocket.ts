@@ -29,7 +29,7 @@ export class WebSocketClient {
   private options: Required<
     Omit<
       WebSocketOptions,
-      "protocols" | "onConnected" | "onDisconnected" | "onError" | "onMessage"
+      "token" | "protocols" | "onConnected" | "onDisconnected" | "onError" | "onMessage"
     >
   > &
     Pick<
@@ -38,7 +38,14 @@ export class WebSocketClient {
     >;
 
   constructor(options: WebSocketOptions) {
-    this._url = options.url;
+    // Build URL with auth token if provided
+    let url = options.url;
+    if (options.token) {
+      const separator = url.includes("?") ? "&" : "?";
+      url = `${url}${separator}token=${encodeURIComponent(options.token)}`;
+    }
+    this._url = url;
+
     this.options = {
       autoConnect: true,
       autoReconnect: true,

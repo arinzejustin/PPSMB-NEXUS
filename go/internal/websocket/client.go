@@ -9,16 +9,20 @@ import (
 	"github.com/gofiber/contrib/websocket"
 )
 
-// Client represents a connected WebSocket client
+// Client represents a connected WebSocket client with authentication binding
 type Client struct {
 	hub           *Hub
 	conn          *websocket.Conn
 	send          chan []byte
 	subscriptions map[string]bool
 	mu            sync.RWMutex
+
+	// Authentication binding - set at connection time, immutable
+	userUUID  string
+	sessionID string
 }
 
-// NewClient creates a new WebSocket client
+// NewClient creates a new WebSocket client (unauthenticated)
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 	return &Client{
 		hub:           hub,
@@ -26,6 +30,33 @@ func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 		send:          make(chan []byte, 256),
 		subscriptions: make(map[string]bool),
 	}
+}
+
+// NewAuthenticatedClient creates a new authenticated WebSocket client
+func NewAuthenticatedClient(hub *Hub, conn *websocket.Conn, userUUID, sessionID string) *Client {
+	return &Client{
+		hub:           hub,
+		conn:          conn,
+		send:          make(chan []byte, 256),
+		subscriptions: make(map[string]bool),
+		userUUID:      userUUID,
+		sessionID:     sessionID,
+	}
+}
+
+// GetUserUUID returns the bound user UUID
+func (c *Client) GetUserUUID() string {
+	return c.userUUID
+}
+
+// GetSessionID returns the bound session ID
+func (c *Client) GetSessionID() string {
+	return c.sessionID
+}
+
+// IsAuthenticated returns true if the client has valid authentication binding
+func (c *Client) IsAuthenticated() bool {
+	return c.userUUID != "" && c.sessionID != ""
 }
 
 // ReadPump reads messages from the WebSocket connection
@@ -39,7 +70,7 @@ func (c *Client) ReadPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				log.Printf("WebSocket error [user=%s]: %v", c.userUUID, err)
 			}
 			break
 		}
@@ -47,7 +78,7 @@ func (c *Client) ReadPump() {
 		// Parse the incoming message
 		msg, err := ParseMessage(message)
 		if err != nil {
-			log.Printf("Failed to parse message: %v", err)
+			log.Printf("Failed to parse message [user=%s]: %v", c.userUUID, err)
 			continue
 		}
 
@@ -108,7 +139,7 @@ func (c *Client) processMessage(msg *Message) {
 		c.handleDataRequest(msg)
 
 	default:
-		log.Printf("Received message type: %s, channel: %s", msg.Type, msg.Channel)
+		log.Printf("Received message type: %s, channel: %s [user=%s]", msg.Type, msg.Channel, c.userUUID)
 		c.handleCustomMessage(msg)
 	}
 }
@@ -117,7 +148,7 @@ func (c *Client) processMessage(msg *Message) {
 func (c *Client) sendPong() {
 	response, _ := NewMessage("pong", "", nil)
 	c.SendMessage(response)
-	log.Println("Received ping, sent pong")
+	log.Printf("Received ping, sent pong [user=%s]", c.userUUID)
 }
 
 // sendConfirmation sends a subscription confirmation
@@ -133,7 +164,7 @@ func (c *Client) handleDataRequest(msg *Message) {
 		json.Unmarshal(msg.Data, &requestData)
 	}
 
-	log.Printf("Data request received: %v", requestData)
+	log.Printf("Data request received [user=%s]: %v", c.userUUID, requestData)
 
 	responseData := map[string]interface{}{
 		"success": true,
@@ -155,14 +186,14 @@ func (c *Client) handleCustomMessage(msg *Message) {
 func (c *Client) SendMessage(msg *Message) {
 	data, err := msg.ToBytes()
 	if err != nil {
-		log.Printf("Failed to marshal message: %v", err)
+		log.Printf("Failed to marshal message [user=%s]: %v", c.userUUID, err)
 		return
 	}
 
 	select {
 	case c.send <- data:
 	default:
-		log.Println("Send buffer full, message dropped")
+		log.Printf("Send buffer full, message dropped [user=%s]", c.userUUID)
 	}
 }
 
@@ -191,4 +222,9 @@ func (c *Client) GetSubscriptions() map[string]bool {
 		subs[k] = v
 	}
 	return subs
+}
+
+// Close terminates the client connection
+func (c *Client) Close() {
+	c.conn.Close()
 }

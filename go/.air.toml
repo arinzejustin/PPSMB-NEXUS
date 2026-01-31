@@ -1,0 +1,22 @@
+#:schema https://json.schemastore.org/any.json
+
+env_files = [".env"]
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/server.exe"
+bin = "tmp/server.exe"
+include_ext = ["go"]
+exclude_dir = ["tmp", "vendor", "node_modules", ".git"]
+delay = 200
+stop_on_error = true
+
+[log]
+time = true
+
+[color]
+main = "red"
+watcher = "cyan"
+build = "yellow"
+runner = "green"

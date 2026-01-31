@@ -51,8 +51,6 @@ class SyncStatusManager {
         },
       );
     }
-
-    this.startConnectionCheck();
   }
 
   private async setupWebListeners() {
@@ -131,7 +129,7 @@ class SyncStatusManager {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${API_URL}/health`, {
         method: "HEAD",
         cache: "no-cache",
         signal: controller.signal,

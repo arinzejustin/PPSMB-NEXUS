@@ -1,10 +1,10 @@
 {
-  "name": "teachers-management-system",
-  "productName": "Teachers Management System",
+  "name": "ppsmb-file-manager",
+  "productName": "PPSMB File Manager",
   "type": "module",
   "private": true,
   "version": "0.11.9",
-  "description": "Teachers Management System for staff management",
+  "description": "PPSMB File Manager",
   "author": "Arinze Justin <codewitharinzejustin@gmail.com>",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "build:nuxt": "nuxt build",
     "generate:nuxt": "nuxt generate",
     "postinstall:nuxt": "nuxt prepare",
-    "dev:go": "cd go && go run .",
+    "dev:go": "cd go && air",
     "go:tidy": "cd go && go mod tidy",
     "build:go": "cd go && go build -o server.exe",
     "build:electron": "tsc -p electron/tsconfig.electron.json",

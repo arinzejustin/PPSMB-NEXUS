@@ -45,8 +45,7 @@ class SyncService {
       try {
         const count = await dbManager.count(table, { synced: { $ne: true } });
         total += count;
-      } catch {
-      }
+      } catch {}
     }
 
     return total;
@@ -136,7 +135,6 @@ class SyncService {
       log.error("Sync failed", error);
     } finally {
       this.isSyncing = false;
-      // Update status after sync
       await this.updateStatus();
     }
   }

@@ -132,6 +132,8 @@ export interface WebSocketMessage<T = any> {
 
 export interface WebSocketOptions {
   url: string;
+  /** JWT token for authentication - will be appended as ?token=xxx */
+  token?: string;
   autoConnect?: boolean;
   autoReconnect?: boolean;
   maxRetries?: number;

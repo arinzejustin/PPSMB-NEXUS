@@ -7,17 +7,24 @@ import (
 	"syscall"
 
 	"ppsmb-file-manager-server/internal/api"
+	"ppsmb-file-manager-server/internal/config"
 	"ppsmb-file-manager-server/internal/websocket"
 )
 
 func main() {
+	// Load security configuration (will panic if secrets not set)
+	cfg := config.LoadSecurityConfig()
+	log.Println("✅ Security configuration loaded")
+
 	// Create WebSocket hub
 	hub := websocket.NewHub()
 	go hub.Run()
+	log.Println("✅ WebSocket hub started")
 
-	// Create and setup router
-	router := api.NewRouter(hub)
+	// Create and setup router with security config
+	router := api.NewRouter(hub, cfg)
 	router.SetupRoutes()
+	log.Println("✅ Routes configured with security middleware")
 
 	// Graceful shutdown
 	c := make(chan os.Signal, 1)
@@ -37,9 +44,13 @@ func main() {
 		port = ":" + port
 	}
 
-	if err := router.Start(port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// BIND_ADDR: "127.0.0.1" for local dev, "0.0.0.0" for VPS
+	bindAddr := os.Getenv("BIND_ADDR")
+	if bindAddr == "" {
+		bindAddr = "127.0.0.1" // Safe default
 	}
 
-	
+	if err := router.Start(bindAddr, port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
