@@ -113,12 +113,10 @@ func (r *Router) SetupRoutes() {
 	)
 
 	// ============================================================
-	// HEALTH CHECK - Gateway protected but no auth required
+	// HEALTH CHECK - Publicly accessible (no auth, no gateway guard)
+	// Used by load balancers, monitoring tools, and health checks
 	// ============================================================
-	r.app.Get("/health",
-		middleware.GatewayGuard(r.cfg),
-		healthHandler.Check,
-	)
+	r.app.Get("/health", healthHandler.Check, middleware.AnonymousRateLimiter(r.limiters))
 
 	// ============================================================
 	// API ROUTES - Full security: Gateway + Auth + Rate Limiting
@@ -160,7 +158,7 @@ func (r *Router) Start(bindAddr string, port string) error {
 	log.Printf("🚀 Server starting on %s", addr)
 	log.Printf("📡 WebSocket endpoint: ws://%s%s/ws (direct client)", bindAddr, port)
 	log.Printf("📡 API endpoint: http://%s%s/api (gateway required)", bindAddr, port)
-	log.Printf("🔒 Gateway guard: ENABLED for /api, /health")
+	log.Printf("🔒 Gateway guard: ENABLED for /api only")
 	log.Printf("🔒 Rate limiting: ENABLED")
 	log.Printf("🔒 JWT Auth: ENABLED")
 

@@ -44,7 +44,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUser, navigateTo } from '#imports';
-import { logOut } from '@/composables/logout';
+import { useLogOut } from '@/composables/useLogOut';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { useSyncStatus } from '@/composables/useSyncStatus';
 import { getStorage, setStorage } from "@/lib/storage"
@@ -154,8 +154,7 @@ const userInitials = computed(() => {
 });
 
 const handleLogout = async () => {
-  await logOut();
-  navigateTo('/login');
+  await useLogOut();
 };
 
 const handleLock = () => {

@@ -1,7 +1,6 @@
-import { ref, computed, readonly } from "vue";
+import { ref, computed, readonly, watch } from "vue";
 import { db, isElectron } from "@/lib/db";
-import { useWebSocketClient } from "@/lib/websocket";
-import { useUser } from "@/composables/useUserStates";
+import { useRawWebSocket } from "@/composables/useWebSocket";
 import type {
   DashboardMetric,
   ZoneData,
@@ -211,7 +210,6 @@ class DashboardDataManager {
   private error = ref<string | null>(null);
   private refreshInterval: ReturnType<typeof setInterval> | null = null;
   private unsubscribeElectron: (() => void) | null = null;
-  private wsConnection: ReturnType<typeof useWebSocketClient> | null = null;
   private wsUnsubscribe: (() => void) | null = null;
   private isInitialized = false;
 
@@ -239,25 +237,25 @@ class DashboardDataManager {
   private async initElectron() {
     await this.initWeb();
     // Load initial data from local database
-    // await this.loadFromLocalDB();
+    await this.loadFromLocalDB();
 
-    // // Subscribe to database change events from Electron main process
-    // if (window.electronAPI?.onDatabaseChange) {
-    //   this.unsubscribeElectron = window.electronAPI.onDatabaseChange(
-    //     (event: { table: string; action: string; data?: any }) => {
-    //       console.log("Database change detected:", event);
-    //       this.handleDatabaseChange(event);
-    //     },
-    //   );
-    // }
+    // Subscribe to database change events from Electron main process
+    if (window.electronAPI?.onDatabaseChange) {
+      this.unsubscribeElectron = window.electronAPI.onDatabaseChange(
+        (event: { table: string; action: string; data?: any }) => {
+          console.log("Database change detected:", event);
+          this.handleDatabaseChange(event);
+        },
+      );
+    }
 
-    // // Set up periodic refresh (every 2 minutes for local data)
-    // this.refreshInterval = setInterval(
-    //   () => {
-    //     this.loadFromLocalDB();
-    //   },
-    //   2 * 60 * 1000,
-    // );
+    // Set up periodic refresh (every 2 minutes for local data)
+    this.refreshInterval = setInterval(
+      () => {
+        this.loadFromLocalDB();
+      },
+      2 * 60 * 1000,
+    );
   }
 
   /**
@@ -632,34 +630,34 @@ class DashboardDataManager {
     ];
 
     const mockAlerts: AlertItem[] = [
-      // {
-      //   id: "1",
-      //   severity: "critical",
-      //   title: "5 Teacher Certifications Expiring This Week",
-      //   description: "TRCN certifications for 5 teachers expire within 7 days",
-      //   actionLabel: "View Details",
-      //   actionRoute: "/certifications/expiring",
-      //   dismissable: true,
-      //   createdAt: new Date(),
-      // },
-      // {
-      //   id: "2",
-      //   severity: "warning",
-      //   title: "3 Pending Transfer Approvals Overdue",
-      //   description: "Transfer requests awaiting approval for over 7 days",
-      //   actionLabel: "Review Now",
-      //   actionRoute: "/staff/transfers",
-      //   dismissable: true,
-      //   createdAt: new Date(),
-      // },
-      // {
-      //   id: "3",
-      //   severity: "info",
-      //   title: "System Maintenance Scheduled",
-      //   description: "Scheduled maintenance on Feb 5, 2026 at 2:00 AM",
-      //   dismissable: true,
-      //   createdAt: new Date(),
-      // },
+      {
+        id: "1",
+        severity: "critical",
+        title: "5 Teacher Certifications Expiring This Week",
+        description: "TRCN certifications for 5 teachers expire within 7 days",
+        actionLabel: "View Details",
+        actionRoute: "/certifications/expiring",
+        dismissable: true,
+        createdAt: new Date(),
+      },
+      {
+        id: "2",
+        severity: "warning",
+        title: "3 Pending Transfer Approvals Overdue",
+        description: "Transfer requests awaiting approval for over 7 days",
+        actionLabel: "Review Now",
+        actionRoute: "/staff/transfers",
+        dismissable: true,
+        createdAt: new Date(),
+      },
+      {
+        id: "3",
+        severity: "info",
+        title: "System Maintenance Scheduled",
+        description: "Scheduled maintenance on Feb 5, 2026 at 2:00 AM",
+        dismissable: true,
+        createdAt: new Date(),
+      },
     ];
 
     const mockEvents: EventItem[] = [
@@ -723,59 +721,49 @@ class DashboardDataManager {
   }
 
   /**
-   * Set up WebSocket connection for real-time updates (Web)
-   * Uses the reusable WebSocket client from @/lib/websocket
+   * Set up WebSocket listener for real-time updates (Web)
+   * Connection is managed by useWebSocketConnection in app layout
    */
   private setupWebSocket() {
-    const env = useRuntimeConfig();
-    const wsUrl = env.public.wsUrl;
-
-    if (!wsUrl) {
-      this.isInitialized = false;
-      return;
-    }
-
-    // Get JWT token for authentication
-    const user = useUser();
-    if (!user.value?.token) {
-      this.isInitialized = false;
-      return;
-    }
-
     try {
-      // Use the WebSocket client library with auth token
-      this.wsConnection = useWebSocketClient({
-        url: wsUrl,
-        token: user.value?.token,
-        autoConnect: true,
-        autoReconnect: true,
-        maxRetries: -1,
-        reconnectDelay: 2000,
-        maxReconnectDelay: 30000,
-        heartbeat: true,
-        heartbeatInterval: 30000,
-        onConnected: () => {
-          console.log("Dashboard WebSocket connected (authenticated)");
-          // Subscribe to dashboard updates channel
-          this.wsConnection?.subscribe("dashboard");
-        },
-        onDisconnected: () => {
-          console.log("Dashboard WebSocket disconnected");
-        },
-        onError: (_, event) => {
-          console.error("Dashboard WebSocket error:", event);
-        },
-      });
+      const { client, isConnected } = useRawWebSocket();
 
-      // Listen for dashboard update messages
-      this.wsUnsubscribe = this.wsConnection.on(
-        "dashboard_update",
-        (data: Partial<DashboardData>) => {
-          this.handleWebSocketUpdate(data);
+      // Function to set up subscription and listener when client is actually connected
+      const setupChannelSubscription = () => {
+        // Check both the client exists AND it's actually connected (not just the global ref)
+        if (!client.value || !client.value.isConnected) {
+          return;
+        }
+
+        // Subscribe to dashboard channel
+        client.value.subscribe("dashboard");
+
+        // Set up listener if not already set
+        if (!this.wsUnsubscribe) {
+          this.wsUnsubscribe = client.value.on(
+            "dashboard_update",
+            (data: Partial<DashboardData>) => {
+              this.handleWebSocketUpdate(data);
+            },
+            "dashboard",
+          );
+        }
+      };
+
+      // Watch for client availability and connection status changes
+      watch(
+        [() => client.value, isConnected],
+        ([clientVal, connected]) => {
+          // Only attempt subscription if global ref says connected
+          // The setupChannelSubscription will verify actual connection
+          if (clientVal && connected) {
+            setupChannelSubscription();
+          }
         },
+        { immediate: true },
       );
     } catch (err) {
-      console.error("Failed to setup WebSocket:", err);
+      console.error("Failed to setup WebSocket listener:", err);
     }
   }
 
@@ -932,9 +920,7 @@ class DashboardDataManager {
     if (this.wsUnsubscribe) {
       this.wsUnsubscribe();
     }
-    if (this.wsConnection) {
-      this.wsConnection.disconnect();
-    }
+    // Note: WebSocket connection is managed globally by useWebSocketConnection
   }
 }
 
@@ -956,6 +942,9 @@ export function useDashboardData() {
   const data = manager.getData();
   const isLoading = manager.getIsLoading();
   const error = manager.getError();
+
+  //cleanup
+  const cleanup = () => manager.cleanup();
 
   // Computed properties
   const metrics = computed(() => data.value.metrics);
@@ -1006,6 +995,7 @@ export function useDashboardData() {
     // Actions
     refresh,
     dismissAlert,
+    cleanup,
 
     // Environment
     isElectron: isElectron(),

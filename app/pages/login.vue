@@ -209,6 +209,7 @@ const submitPin = async (): Promise<void> => {
             };
 
             window.electronAPI.dbInsert("users", JSON.parse(JSON.stringify(payload)));
+            window.electronAPI.authLogin(JSON.parse(JSON.stringify({ ...payload, pin: undefined })))
         }
         hasSetPin.value = true;
         showPinModal.value = false;
@@ -275,6 +276,7 @@ const handleSubmit = async (): Promise<void> => {
                 };
 
                 window.electronAPI.dbInsert("users", JSON.parse(JSON.stringify(payload)));
+                window.electronAPI.authLogin(JSON.parse(JSON.stringify({ ...payload, pin: undefined })))
             }
             await navigateTo('/');
         } else {
@@ -464,7 +466,8 @@ watch(hasSetPin, (value) => {
             Secured connection
         </p>
         <Dialog :open="showPinModal && !hasSetPin" @update:open="(val) => showPinModal = val">
-            <DialogContent class="sm:max-w-md bg-background shadow-lg" @interact-outside="(e: any) => { e.preventDefault() }">
+            <DialogContent class="sm:max-w-md bg-background shadow-lg"
+                @interact-outside="(e: any) => { e.preventDefault() }">
                 <DialogHeader class="text-center">
                     <div class="flex justify-center mb-4">
                         <div

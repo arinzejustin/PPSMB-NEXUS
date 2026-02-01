@@ -29,6 +29,8 @@ const appBridge = {
     getData: (key) => electron_1.ipcRenderer.invoke("db:get-data", key),
     // Authentication
     verifyPin: (pin, uuid) => electron_1.ipcRenderer.invoke("auth:verify-pin", pin, uuid),
+    authLogin: (user) => electron_1.ipcRenderer.invoke("auth:login", user),
+    authLogout: () => electron_1.ipcRenderer.invoke("auth:logout"),
     // Notification
     sendNotification: (title, body) => electron_1.ipcRenderer.send("notification", title, body),
     // Document scanner

@@ -3,6 +3,8 @@ import { dbManager } from "./app.db.js";
 import { getSupabase, rotateRecords } from "./supabase.js";
 import axios from "axios";
 import log from "../utils/logger.js";
+import { NotificationService } from "../utils/notification.js";
+import { storeHelper } from "../store/store.js";
 
 export interface SyncStatusUpdate {
   isOnline: boolean;
@@ -12,21 +14,31 @@ export interface SyncStatusUpdate {
 
 class SyncService {
   private syncInterval: NodeJS.Timeout | null = null;
+  private statusInterval: NodeJS.Timeout | null = null;
   private isSyncing: boolean = false;
-  private lastSynced: Date = new Date();
+  private lastSynced: Date;
   private isOnline: boolean = false;
   private pendingChanges: number = 0;
+  private canNotify: boolean = false;
+
+  constructor() {
+    // Load lastSynced from store, or use current date if not set
+    const storedLastSync = storeHelper.getLastSync();
+    this.lastSynced = storedLastSync ? new Date(storedLastSync) : new Date();
+  }
 
   /**
-   * Check if internet is available by pinging the server
+   * Check if the sync server is reachable
    */
   private async checkConnection(): Promise<boolean> {
     try {
-      await axios.get("https://8.8.8.8", { timeout: 3000 });
+      await axios.head("https://ppsmb.com.ng/health", {
+        timeout: 5000,
+      });
       return true;
     } catch {
       try {
-        await axios.head("https://www.google.com", { timeout: 3000 });
+        await axios.head("https://ppsmb.com.ng", { timeout: 5000 });
         return true;
       } catch {
         return false;
@@ -45,7 +57,9 @@ class SyncService {
       try {
         const count = await dbManager.count(table, { synced: { $ne: true } });
         total += count;
-      } catch {}
+      } catch (error) {
+        log.warn(`Failed to count pending changes for table ${table}`, error);
+      }
     }
 
     return total;
@@ -82,7 +96,27 @@ class SyncService {
    * @param intervalMs Interval in milliseconds (default 5 minutes)
    */
   public start(intervalMs: number = 5 * 60 * 1000) {
-    if (this.syncInterval) clearInterval(this.syncInterval);
+    // Check if user is logged in before starting sync service
+    if (!storeHelper.isUserLoggedIn()) {
+      log.info("Sync not started: No user is currently logged in");
+
+      return;
+    }
+
+    log.debug("Starting sync service", {
+      user: storeHelper.getUser()?.uuid,
+      isLoggedIn: storeHelper.isUserLoggedIn(),
+    });
+
+    // Clear existing intervals to prevent duplicates
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
+    if (this.statusInterval) {
+      clearInterval(this.statusInterval);
+      this.statusInterval = null;
+    }
 
     // Initial status update
     this.updateStatus();
@@ -93,7 +127,7 @@ class SyncService {
     }, intervalMs);
 
     // Also update status more frequently (every 30 seconds)
-    setInterval(() => {
+    this.statusInterval = setInterval(() => {
       this.updateStatus();
     }, 30000);
 
@@ -102,13 +136,34 @@ class SyncService {
   }
 
   public stop() {
-    if (this.syncInterval) clearInterval(this.syncInterval);
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
+    if (this.statusInterval) {
+      clearInterval(this.statusInterval);
+      this.statusInterval = null;
+    }
+    this.isSyncing = false;
+    log.info("Sync service stopped");
   }
 
   /**
    * Sync all local tables that need syncing
    */
   public async syncAllTables() {
+    // Check if user is logged in before syncing
+    if (!storeHelper.isUserLoggedIn()) {
+      log.info("Sync skipped: No user is currently logged in");
+      if (this.canNotify)
+        NotificationService.show(
+          "Synchronization Failed",
+          "You are not logged in. Please log in to sync your data.",
+        );
+      this.canNotify = false;
+      return;
+    }
+
     if (this.isSyncing) return;
     this.isSyncing = true;
 
@@ -130,6 +185,7 @@ class SyncService {
       }
 
       this.lastSynced = new Date();
+      storeHelper.updateLastSync();
       log.info("Sync completed successfully");
     } catch (error) {
       log.error("Sync failed", error);
@@ -183,7 +239,8 @@ class SyncService {
   /**
    * Force an immediate sync
    */
-  public async syncNow() {
+  public async syncNow({ canNotify = false }: { canNotify?: boolean } = {}) {
+    this.canNotify = canNotify;
     await this.syncAllTables();
   }
 

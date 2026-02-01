@@ -37,7 +37,6 @@ export default defineComponent({
     const token = useToken();
     const { theme } = useTheme();
     const { lockSession } = useLockWindow();
-    const { cleanup } = useSyncStatus()
 
     const refreshToken = async () => {
       try {
@@ -54,8 +53,7 @@ export default defineComponent({
       token,
       refreshToken,
       theme,
-      lockSession,
-      cleanup
+      lockSession
     }
   },
 
@@ -118,8 +116,8 @@ export default defineComponent({
       window.electronAPI?.navigateHistory(action);
     },
 
-    syncRecords() {
-      window.electronAPI?.syncRecords()
+    async syncRecords() {
+      await window.electronAPI?.syncRecords();
     },
 
     changeRotation() {
@@ -334,7 +332,6 @@ export default defineComponent({
     if (window.electronAPI) {
       window.removeEventListener("keydown", this.handleKeydown);
     }
-    this.cleanup();
   },
 });
 

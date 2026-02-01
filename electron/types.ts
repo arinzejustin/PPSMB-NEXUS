@@ -94,6 +94,8 @@ export interface IElectronAPI {
   onSystemThemeChange: (cb: (theme: string) => void) => Unsubscribe;
   onSyncStatusUpdate: (cb: (status: { isOnline: boolean, lastSynced: Date, pendingChanges: number }) => void) => Unsubscribe;
   onDatabaseChange: (cb: (event: { table: string; action: string; data?: any }) => void) => Unsubscribe;
+  authLogin: (user: UserDetails & Omit<Auth, "pin">) => Promise<boolean>;
+  authLogout: () => Promise<boolean>;
 }
 
 export interface UpdateSchema {
@@ -132,5 +134,6 @@ export interface AppStore {
   SUPABASE_URL: string;
   SUPABASE_KEY: string;
   updateDownloaded: boolean;
+
 }
 

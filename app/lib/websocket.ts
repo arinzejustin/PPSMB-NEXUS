@@ -1,4 +1,4 @@
-import { ref, watch } from "vue";
+import { ref, watch, computed, type Ref } from "vue";
 import {
   useWebSocket as useVueWebSocket,
   type UseWebSocketReturn,
@@ -148,8 +148,13 @@ export class WebSocketClient {
    */
   public disconnect(): void {
     this.wsInstance?.close();
-    this._isConnected.value = false;
-    this._status.value = "CLOSED";
+    // Safety check - ensure refs are valid before setting
+    if (this._isConnected && typeof this._isConnected === "object") {
+      this._isConnected.value = false;
+    }
+    if (this._status && typeof this._status === "object") {
+      this._status.value = "CLOSED";
+    }
     this.clearHeartbeat();
   }
 
@@ -351,13 +356,13 @@ export class WebSocketClient {
   }
 
   /** Whether the WebSocket is currently connected */
-  get isConnected(): Ref<boolean> {
-    return this._isConnected;
+  get isConnected(): boolean {
+    return this._isConnected.value;
   }
 
   /** Current connection status */
-  get status(): Ref<WebSocketStatus> {
-    return this._status;
+  get status(): WebSocketStatus {
+    return this._status.value;
   }
 
   /** Last error that occurred */
@@ -495,8 +500,8 @@ export function useWebSocketClient(
 
   return {
     client,
-    isConnected: client.isConnected,
-    status: client.status,
+    isConnected: computed(() => client.isConnected),
+    status: computed(() => client.status),
     lastError: client.lastError,
     lastMessage: client.lastMessage,
     send: (message) => client.send(message),

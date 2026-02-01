@@ -12,9 +12,10 @@ function getDeviceEncryptionKey(): string {
   let hardwareId = "";
   try {
     if (os.platform() === "win32") {
-      hardwareId = execSync("wmic csproduct get uuid")
+      hardwareId = execSync(
+        "powershell -Command \"(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID\"",
+      )
         .toString()
-        .split("\n")[1]!
         .trim();
     } else if (os.platform() === "darwin") {
       hardwareId = execSync(

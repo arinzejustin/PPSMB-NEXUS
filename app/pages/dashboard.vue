@@ -61,7 +61,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
@@ -90,7 +89,7 @@ import {
   Filler
 } from 'chart.js';
 import { format, formatDistanceToNow } from 'date-fns';
-import { setStorage, getStorage } from "@/lib/storage"
+import { setStorage, getStorage, getSession, setSession } from "@/lib/storage"
 
 ChartJS.register(
   CategoryScale,
@@ -121,6 +120,8 @@ const currentTime = ref(new Date());
 const timeInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const showSyncDetails = ref(false);
 const showQuickActionsDialog = ref(false);
+const showAlertsInline = ref(false);
+const showNotificationPopover = ref(false);
 
 
 const { status: syncStatus, formatLastSynced, statusColor, forceCheck } = useSyncStatus();
@@ -630,12 +631,28 @@ const handleSyncNow = async () => {
   await forceCheck();
 };
 
+// Check if alerts should be shown inline (first visit this session)
+const checkAlertsVisibility = () => {
+  const alertsShownThisSession = getSession<boolean>('dashboard_alerts_shown');
+  if (!alertsShownThisSession) {
+    showAlertsInline.value = true;
+    setSession('dashboard_alerts_shown', true);
+  }
+};
+
+// Dismiss inline alerts (hides the inline section, bell still shows alerts)
+const dismissInlineAlerts = () => {
+  showAlertsInline.value = false;
+};
+
 onMounted(() => {
   timeInterval.value = setInterval(() => {
     currentTime.value = new Date();
   }, 1000);
   // Load quick actions from localStorage
   loadQuickActionsFromStorage();
+  // Check if we should show inline alerts
+  checkAlertsVisibility();
 });
 
 onUnmounted(() => {
@@ -725,6 +742,55 @@ onUnmounted(() => {
             </div>
           </div>
           <div class="flex items-center gap-2">
+            <!-- Notification Bell with Dropdown -->
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline" size="icon" class="relative rounded-full h-9 w-9">
+                  <Bell class="w-4 h-4" />
+                  <span v-if="alerts.length > 0"
+                    class="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-red-500 rounded-full animate-pulse">
+                    {{ alerts.length > 9 ? '9+' : alerts.length }}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" class="w-80 max-h-96 overflow-auto">
+                <div class="flex items-center justify-between px-3 py-2 border-b border-border">
+                  <span class="font-semibold text-sm">Notifications</span>
+                  <Badge v-if="alerts.length > 0" variant="secondary" class="text-xs">
+                    {{ alerts.length }} alert{{ alerts.length > 1 ? 's' : '' }}
+                  </Badge>
+                </div>
+                <div v-if="alerts.length === 0" class="p-4 text-center text-muted-foreground text-sm">
+                  <Bell class="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p>No alerts at this time</p>
+                </div>
+                <template v-else>
+                  <div v-for="alert in alerts" :key="alert.id" class="p-3 border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors">
+                    <div class="flex items-start gap-3">
+                      <div
+                        :class="['p-1.5 rounded-lg shrink-0', alert.severity === 'critical' ? 'bg-red-500/10' : alert.severity === 'warning' ? 'bg-amber-500/10' : 'bg-blue-500/10']">
+                        <component :is="getAlertIcon(alert.severity)" :class="['w-4 h-4', getAlertIconColor(alert.severity)]" />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="font-medium text-sm truncate">{{ alert.title }}</p>
+                        <p class="text-xs text-muted-foreground line-clamp-2 mt-0.5">{{ alert.description }}</p>
+                        <div class="flex items-center gap-2 mt-2">
+                          <Button v-if="alert.actionLabel" variant="outline" size="sm" class="h-7 text-xs"
+                            @click="$router.push(alert.actionRoute || '#')">
+                            {{ alert.actionLabel }}
+                          </Button>
+                          <Button v-if="alert.dismissable" variant="ghost" size="sm" class="h-7 text-xs"
+                            @click="dismissAlert(alert.id)">
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             <Button variant="outline" size="sm" @click="refreshData" :disabled="isLoading" class="rounded-full">
               <RefreshCw :class="['w-4 h-4 mr-2', isLoading ? 'animate-spin' : '']" />
               Refresh
@@ -739,8 +805,18 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Critical Alerts Section (Prominent) -->
-    <div v-if="alerts.length > 0" class="space-y-3">
+    <!-- Critical Alerts Section (Prominent) - Only shown on first visit per session -->
+    <div v-if="alerts.length > 0 && showAlertsInline" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+          <Bell class="w-4 h-4" />
+          System Alerts
+        </h3>
+        <Button variant="ghost" size="sm" class="h-7 text-xs" @click="dismissInlineAlerts">
+          <X class="w-3 h-3 mr-1" />
+          Dismiss All
+        </Button>
+      </div>
       <div v-for="alert in alerts" :key="alert.id" :class="[
         'relative p-4 rounded-xl border-2 flex items-start gap-4 transition-all hover:shadow-md',
         getAlertColor(alert.severity)

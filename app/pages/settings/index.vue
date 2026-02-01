@@ -27,7 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Badge } from '@/components/ui/badge';
 import Theme from '@/components/app/Theme.vue';
 import { useUser, useToken } from '~/composables/useUserStates';
-import { logOut } from '@/composables/logout';
+import { useLogOut } from '~/composables/useLogOut';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { useNavigationHistory } from '@/composables/useNavigationHistory';
 import { deleteStorage } from '@/lib/storage';
@@ -160,8 +160,8 @@ const resetPinModal = (): void => {
 
 
 const handleLogout = async () => {
-    await logOut();
-    deleteStorage("userDetails")
+    await useLogOut();
+    deleteStorage("userDetails");
 };
 
 const handleDownloadApp = async () => {

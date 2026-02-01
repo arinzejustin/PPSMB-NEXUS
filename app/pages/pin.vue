@@ -1,12 +1,14 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta, useUser, logOut } from '#imports';
+import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta } from '#imports';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input';
 import { ChevronRight, ClockFading, CircleAlert, LockKeyhole, LogIn } from 'lucide-vue-next';
 import { setStorage, getStorage, deleteStorage } from '@/lib/storage';
+import { useLogOut } from '@/composables/useLogOut';
+import { useUser } from "@/composables/useUserStates"
 
 export default defineComponent({
     setup() {
@@ -196,12 +198,7 @@ export default defineComponent({
         },
 
         async handleLogout() {
-            await logOut();
-            deleteStorage("userDetails");
-            deleteStorage("hasLoggedIn");
-            deleteStorage("lastTime");
-            deleteStorage("snapshot");
-            navigateTo('/login');
+            await useLogOut();
         }
     }
 });

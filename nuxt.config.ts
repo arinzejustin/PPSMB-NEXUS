@@ -2,10 +2,12 @@ import { defineNuxtConfig } from "nuxt/config";
 
 const isDesktop = process.env.NUXT_PUBLIC_APP_TYPE === "desktop";
 
+console.log(isDesktop);
+
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
-  ssr: !isDesktop,
+  ssr: false,
   app: {
     head: {
       title: "PPSMB Staff Manager",

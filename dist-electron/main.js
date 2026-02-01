@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 let win = null;
 let tray = null;
 let isAppQuitting = false;
+let idleCheckInterval = null;
 async function uploadPendingCrash() {
     const crashFile = path.join(app.getPath("userData"), "ppsmb-crash", "crash-pending.json");
     if (!fs.existsSync(crashFile))
@@ -26,7 +27,9 @@ async function uploadPendingCrash() {
         await axios.post("https://ppsmb.com.ng/api/crash/json", data);
         fs.unlinkSync(crashFile);
     }
-    catch { }
+    catch (error) {
+        log.warn("Failed to upload pending crash report", error);
+    }
 }
 crashReporter.start({
     productName: "Staff Manager",
@@ -61,7 +64,7 @@ function sendCrashReport(error, origin) {
     catch { }
 }
 function handleUserIdle() {
-    if (!win)
+    if (!win || win.isDestroyed())
         return;
     win.webContents.send("idle");
 }
@@ -112,9 +115,12 @@ async function createWindow() {
             return;
         }
     });
+    win.on("closed", () => {
+        win = null;
+    });
     setupTray();
     win.webContents.on("context-menu", (_event, params) => {
-        if (!win)
+        if (!win || win.isDestroyed())
             return;
         const payload = {
             exit: true,
@@ -150,10 +156,7 @@ async function createWindow() {
     });
     const scanner = await ensureExternalFileExists(app);
     if (scanner) {
-        if (scanner.status)
-            NotificationService.show(scanner.title, scanner.message);
-        else
-            NotificationService.show(scanner.title, scanner.message);
+        NotificationService.show(scanner.title, scanner.message);
     }
 }
 function setupTray() {
@@ -187,7 +190,7 @@ function setupTray() {
             },
         },
     ]);
-    tray.setToolTip("Staff Manager");
+    tray.setToolTip("PPSMB Staff Manager");
     tray.setContextMenu(contextMenu);
     tray.on("click", () => {
         if (win?.isVisible()) {
@@ -201,7 +204,6 @@ function setupTray() {
 ipcMain.handle("db:insert", async (_event, tableName, doc) => {
     try {
         const result = await dbManager.insert(tableName, doc);
-        // Notify sync service of data change
         syncService.notifyDataChange();
         return result;
     }
@@ -273,7 +275,7 @@ ipcMain.handle("db:save", (_event, item) => {
 });
 ipcMain.handle("app:exitOrRestart", (_event, action) => {
     if (action === "exit") {
-        app.quit();
+        win?.hide();
     }
     else {
         app.relaunch();
@@ -333,7 +335,7 @@ ipcMain.handle("open-modal", (_event, routeUrl, options) => {
 });
 ipcMain.handle("db:sync", async (_event) => {
     try {
-        await syncService.syncNow();
+        await syncService.syncNow({ canNotify: true });
         return { success: true };
     }
     catch (error) {
@@ -362,6 +364,7 @@ ipcMain.handle("auth:verify-pin", async (_event, pin, uuid) => {
             token: res.token,
             expiresAt: 60 * 60 * 24,
         });
+        syncService.start();
         return data;
     }
     return null;
@@ -386,6 +389,21 @@ ipcMain.handle("store:set", (_event, key, value) => {
 });
 ipcMain.handle("store:getUser", (_event) => {
     return storeHelper.getUser();
+});
+ipcMain.handle("auth:login", (_event, user) => {
+    storeHelper.setUser(user);
+    storeHelper.setSession({
+        token: user.token,
+        expiresAt: 60 * 60 * 24,
+    });
+    syncService.start();
+    return true;
+});
+ipcMain.handle("auth:logout", (_event) => {
+    storeHelper.clearUser();
+    storeHelper.clearSession();
+    syncService.stop();
+    return true;
 });
 ipcMain.handle("store:clearUser", (_event) => {
     storeHelper.clearUser();
@@ -412,10 +430,16 @@ nativeTheme.on("updated", () => {
     }
 });
 app.whenReady().then(() => {
-    if (BrowserWindow.getAllWindows().length === 0 && win === null)
+    if (win === null)
         createWindow();
     uploadPendingCrash().catch((e) => log.error("Failed to upload crash", e));
-    setInterval(() => {
+    // Clear any existing interval to prevent duplicates
+    if (idleCheckInterval) {
+        clearInterval(idleCheckInterval);
+    }
+    idleCheckInterval = setInterval(() => {
+        if (!win || win.isDestroyed())
+            return;
         const lockTime = storeHelper.getSetting("lockScreen");
         const idleTime = powerMonitor.getSystemIdleTime();
         if (idleTime >= lockTime) {
@@ -426,6 +450,16 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
     isAppQuitting = true;
     syncService.stop();
+    // Clean up interval
+    if (idleCheckInterval) {
+        clearInterval(idleCheckInterval);
+        idleCheckInterval = null;
+    }
+    // Clean up tray
+    if (tray) {
+        tray.destroy();
+        tray = null;
+    }
 });
 app.on("will-quit", () => {
     // closeDB();

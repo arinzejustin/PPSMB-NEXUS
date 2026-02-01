@@ -1,6 +1,6 @@
 // @ts-ignore
 import { contextBridge, ipcRenderer } from "electron";
-import type { IElectronAPI, Unsubscribe } from "./types.js";
+import type { IElectronAPI, Unsubscribe, UserDetails, Auth } from "./types.js";
 
 function on<T = unknown>(
   channel: string,
@@ -44,6 +44,9 @@ const appBridge: IElectronAPI = {
   // Authentication
   verifyPin: (pin: string, uuid: string) =>
     ipcRenderer.invoke("auth:verify-pin", pin, uuid),
+  authLogin: (user: UserDetails & Omit<Auth, "pin">) =>
+    ipcRenderer.invoke("auth:login", user),
+  authLogout: () => ipcRenderer.invoke("auth:logout"),
 
   // Notification
   sendNotification: (title, body) =>
