@@ -23,7 +23,8 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
-  Zap
+  Zap,
+  Send
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -84,6 +85,12 @@ const navItems: NavItem[] = [
     icon: Mail,
     to: '/mail/',
     badge: 5
+  },
+  {
+    id: 'broadcast',
+    label: 'Broadcasting Hub',
+    icon: Send,
+    to: '/broadcast/'
   },
   {
     id: 'documents',

@@ -10,7 +10,7 @@
 
 // Database configuration
 const INDEXED_DB_NAME = "ppsmb_app_db";
-const INDEXED_DB_VERSION = 1;
+const INDEXED_DB_VERSION = 2; // Incremented to add broadcast stores
 
 // Store names for IndexedDB
 export const STORES = {
@@ -18,9 +18,13 @@ export const STORES = {
   PENDING_CHANGES: "pending_changes",
   CACHE: "cache",
   OFFLINE_DATA: "offline_data",
+  // Broadcast module stores
+  BROADCAST_DRAFTS: "broadcast_drafts",
+  BROADCAST_HISTORY: "broadcast_history",
+  BROADCAST_TEMPLATES: "broadcast_templates",
 } as const;
 
-type StoreName = (typeof STORES)[keyof typeof STORES];
+type StoreName = (typeof STORES)[keyof typeof STORES] | string;
 
 export interface DBRecord {
   _id?: string;
@@ -218,7 +222,7 @@ class IndexedDBManager {
       const store = transaction.objectStore(storeName);
       let updated = 0;
 
-      const updateData = "$set" in update ? update.$set : update;
+      const updateData = ("$set" in update ? update.$set : update) || {};
 
       records.forEach((record) => {
         const updatedRecord = {
@@ -541,7 +545,11 @@ export const syncQueue = {
    * Mark a change as synced
    */
   async markSynced(id: string): Promise<void> {
-    await db.update(STORES.SYNC_QUEUE, { _id: id }, { $set: { synced: true } });
+    await db.update<DBRecord>(
+      STORES.SYNC_QUEUE,
+      { _id: id },
+      { $set: { synced: true } },
+    );
   },
 
   /**

@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	// Load security configuration (will panic if secrets not set)
 	cfg := config.LoadSecurityConfig()
 	log.Println("✅ Security configuration loaded")
 
