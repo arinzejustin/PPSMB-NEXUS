@@ -25,7 +25,13 @@ export interface IElectronAPI {
   dbInsert: <T extends Record<string, any>>(
     tableName: string,
     doc: T,
+    incoming?: boolean,
   ) => Promise<T>;
+  dbInsertMany: <T extends Record<string, any>>(
+    tableName: string,
+    docs: T[],
+    incoming?: boolean,
+  ) => Promise<T[]>;
   dbFind: <T>(
     tableName: string,
     query?: any,
@@ -34,6 +40,7 @@ export interface IElectronAPI {
     skip?: number,
   ) => Promise<T[]>;
   dbFindOne: <T>(tableName: string, query?: any) => Promise<T | null>;
+  dbFindMany: <T>(tableName: string, query?: any) => Promise<T[]>;
   dbUpdate: (
     tableName: string,
     query: any,
@@ -92,8 +99,16 @@ export interface IElectronAPI {
   clearUser: () => Promise<boolean>;
   getSystemTheme: () => Promise<"light" | "dark">;
   onSystemThemeChange: (cb: (theme: string) => void) => Unsubscribe;
-  onSyncStatusUpdate: (cb: (status: { isOnline: boolean, lastSynced: Date, pendingChanges: number }) => void) => Unsubscribe;
-  onDatabaseChange: (cb: (event: { table: string; action: string; data?: any }) => void) => Unsubscribe;
+  onSyncStatusUpdate: (
+    cb: (status: {
+      isOnline: boolean;
+      lastSynced: Date;
+      pendingChanges: number;
+    }) => void,
+  ) => Unsubscribe;
+  onDatabaseChange: (
+    cb: (event: { table: string; action: string; data?: any }) => void,
+  ) => Unsubscribe;
   authLogin: (user: UserDetails & Omit<Auth, "pin">) => Promise<boolean>;
   authLogout: () => Promise<boolean>;
 }
@@ -134,6 +149,4 @@ export interface AppStore {
   SUPABASE_URL: string;
   SUPABASE_KEY: string;
   updateDownloaded: boolean;
-
 }
-

@@ -12,11 +12,16 @@ function on<T = unknown>(
 }
 
 const appBridge: IElectronAPI = {
-  dbInsert: (tableName, doc) => ipcRenderer.invoke("db:insert", tableName, doc),
+  dbInsert: (tableName, doc, incoming = false) =>
+    ipcRenderer.invoke("db:insert", tableName, doc, incoming),
+  dbInsertMany: (tableName, docs, incoming = false) =>
+    ipcRenderer.invoke("db:insertMany", tableName, docs, incoming),
   dbFind: (tableName, query, sort, limit, skip) =>
     ipcRenderer.invoke("db:find", tableName, query, sort, limit, skip),
   dbFindOne: (tableName, query) =>
     ipcRenderer.invoke("db:findOne", tableName, query),
+  dbFindMany: (tableName, query) =>
+    ipcRenderer.invoke("db:findMany", tableName, query),
   dbUpdate: (tableName, query, update, options) =>
     ipcRenderer.invoke("db:update", tableName, query, update, options),
   dbDelete: (tableName, query, options) =>

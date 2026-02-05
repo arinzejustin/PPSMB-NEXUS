@@ -201,14 +201,25 @@ function setupTray() {
         }
     });
 }
-ipcMain.handle("db:insert", async (_event, tableName, doc) => {
+ipcMain.handle("db:insert", async (_event, tableName, doc, incoming = false) => {
     try {
-        const result = await dbManager.insert(tableName, doc);
+        const result = await dbManager.insert(tableName, doc, incoming);
         syncService.notifyDataChange();
         return result;
     }
     catch (error) {
         log.error(`IPC db:insert error in ${tableName}`, error);
+        return false;
+    }
+});
+ipcMain.handle("db:insertMany", async (_event, tableName, docs, incoming = false) => {
+    try {
+        const result = await dbManager.insertMany(tableName, docs, incoming);
+        syncService.notifyDataChange();
+        return result;
+    }
+    catch (error) {
+        log.error(`IPC db:insertMany error in ${tableName}`, error);
         return false;
     }
 });
@@ -227,6 +238,15 @@ ipcMain.handle("db:findOne", async (_event, tableName, query) => {
     }
     catch (error) {
         log.error(`IPC db:findOne error in ${tableName}`, error);
+        throw error;
+    }
+});
+ipcMain.handle("db:findMany", async (_event, tableName, query) => {
+    try {
+        return await dbManager.findMany(tableName, query);
+    }
+    catch (error) {
+        log.error(`IPC db:findMany error in ${tableName}`, error);
         throw error;
     }
 });

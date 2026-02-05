@@ -46,13 +46,13 @@ class DatabaseManager {
       filename: path.join(this.dbDir, `${tableName}.db`),
       autoload: true,
       timestampData: true,
-      afterSerialization: (plaintext) => {
-        return safeStorage.encryptString(plaintext).toString("base64");
-      },
-      beforeDeserialization: (ciphertext) => {
-        const buffer = Buffer.from(ciphertext, "base64");
-        return safeStorage.decryptString(buffer);
-      },
+      // afterSerialization: (plaintext) => {
+      //   return safeStorage.encryptString(plaintext).toString("base64");
+      // },
+      // beforeDeserialization: (ciphertext) => {
+      //   const buffer = Buffer.from(ciphertext, "base64");
+      //   return safeStorage.decryptString(buffer);
+      // },
     });
     this.stores.set(tableName, store);
     return store;
@@ -96,8 +96,13 @@ class DatabaseManager {
       return { ...existing, ...updateData } as T;
     }
 
-    if (!(doc as any).uuid && tableName !== "users" && !isIncoming) {
-      (doc as any).uuid = generateUUID();
+    if (
+      !(doc as any).uuid ||
+      (!(doc as any).id && tableName !== "users" && !isIncoming)
+    ) {
+      const id = generateUUID();
+      (doc as any).uuid = id;
+      (doc as any).id = id;
     }
 
     return new Promise((resolve, reject) => {
@@ -106,8 +111,49 @@ class DatabaseManager {
           reject(err);
         } else {
           // Broadcast change to renderer
-          this.broadcastChange({ table: tableName, action: "insert", data: newDoc });
+          this.broadcastChange({
+            table: tableName,
+            action: "insert",
+            data: newDoc,
+          });
           resolve(newDoc as T);
+        }
+      });
+    });
+  }
+
+  public async insertMany<T extends Record<string, any>>(
+    tableName: string,
+    docs: T[],
+    isIncoming: boolean = false,
+  ): Promise<T[]> {
+    if (docs.length === 0) return [];
+
+    const store = this.getTable(tableName);
+
+    const preparedDocs = docs.map((doc) => {
+      const cloned = { ...doc };
+
+      if (!(cloned as any).uuid && tableName !== "users" && !isIncoming) {
+        const id = generateUUID();
+        (cloned as any).uuid = id;
+        (cloned as any).id = id;
+      }
+      return cloned;
+    });
+
+    return new Promise((resolve, reject) => {
+      store.insert(preparedDocs as any, (err, newDocs) => {
+        if (err) {
+          reject(err);
+        } else {
+          this.broadcastChange({
+            table: tableName,
+            action: "insert",
+            data: newDocs,
+          });
+
+          resolve(newDocs as T[]);
         }
       });
     });
@@ -153,6 +199,19 @@ class DatabaseManager {
   }
 
   /**
+   * Find many records
+   */
+  public async findMany<T>(tableName: string, query: any): Promise<T[]> {
+    const store = this.getTable(tableName);
+    return new Promise((resolve, reject) => {
+      store.find(query, (err: any, docs: T[]) => {
+        if (err) reject(err);
+        else resolve(docs as T[]);
+      });
+    });
+  }
+
+  /**
    * Update records
    */
   public async update(
@@ -169,7 +228,11 @@ class DatabaseManager {
         } else {
           // Broadcast change to renderer
           if (numReplaced > 0) {
-            this.broadcastChange({ table: tableName, action: "update", data: { query, update, count: numReplaced } });
+            this.broadcastChange({
+              table: tableName,
+              action: "update",
+              data: { query, update, count: numReplaced },
+            });
           }
           resolve(numReplaced);
         }
@@ -193,7 +256,11 @@ class DatabaseManager {
         } else {
           // Broadcast change to renderer
           if (numRemoved > 0) {
-            this.broadcastChange({ table: tableName, action: "delete", data: { query, count: numRemoved } });
+            this.broadcastChange({
+              table: tableName,
+              action: "delete",
+              data: { query, count: numRemoved },
+            });
           }
           resolve(numRemoved);
         }

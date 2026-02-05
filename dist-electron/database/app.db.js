@@ -1,5 +1,5 @@
 import Datastore from "@seald-io/nedb";
-import { safeStorage, BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import path from "node:path";
 import { app } from "electron";
 import fs from "node:fs";
@@ -35,13 +35,13 @@ class DatabaseManager {
             filename: path.join(this.dbDir, `${tableName}.db`),
             autoload: true,
             timestampData: true,
-            afterSerialization: (plaintext) => {
-                return safeStorage.encryptString(plaintext).toString("base64");
-            },
-            beforeDeserialization: (ciphertext) => {
-                const buffer = Buffer.from(ciphertext, "base64");
-                return safeStorage.decryptString(buffer);
-            },
+            // afterSerialization: (plaintext) => {
+            //   return safeStorage.encryptString(plaintext).toString("base64");
+            // },
+            // beforeDeserialization: (ciphertext) => {
+            //   const buffer = Buffer.from(ciphertext, "base64");
+            //   return safeStorage.decryptString(buffer);
+            // },
         });
         this.stores.set(tableName, store);
         return store;
@@ -73,8 +73,11 @@ class DatabaseManager {
             await this.update(tableName, query, { $set: updateData }, { multi: false });
             return { ...existing, ...updateData };
         }
-        if (!doc.uuid && tableName !== "users" && !isIncoming) {
-            doc.uuid = generateUUID();
+        if (!doc.uuid ||
+            (!doc.id && tableName !== "users" && !isIncoming)) {
+            const id = generateUUID();
+            doc.uuid = id;
+            doc.id = id;
         }
         return new Promise((resolve, reject) => {
             store.insert(doc, (err, newDoc) => {
@@ -83,8 +86,41 @@ class DatabaseManager {
                 }
                 else {
                     // Broadcast change to renderer
-                    this.broadcastChange({ table: tableName, action: "insert", data: newDoc });
+                    this.broadcastChange({
+                        table: tableName,
+                        action: "insert",
+                        data: newDoc,
+                    });
                     resolve(newDoc);
+                }
+            });
+        });
+    }
+    async insertMany(tableName, docs, isIncoming = false) {
+        if (docs.length === 0)
+            return [];
+        const store = this.getTable(tableName);
+        const preparedDocs = docs.map((doc) => {
+            const cloned = { ...doc };
+            if (!cloned.uuid && tableName !== "users" && !isIncoming) {
+                const id = generateUUID();
+                cloned.uuid = id;
+                cloned.id = id;
+            }
+            return cloned;
+        });
+        return new Promise((resolve, reject) => {
+            store.insert(preparedDocs, (err, newDocs) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    this.broadcastChange({
+                        table: tableName,
+                        action: "insert",
+                        data: newDocs,
+                    });
+                    resolve(newDocs);
                 }
             });
         });
@@ -123,6 +159,20 @@ class DatabaseManager {
         });
     }
     /**
+     * Find many records
+     */
+    async findMany(tableName, query) {
+        const store = this.getTable(tableName);
+        return new Promise((resolve, reject) => {
+            store.find(query, (err, docs) => {
+                if (err)
+                    reject(err);
+                else
+                    resolve(docs);
+            });
+        });
+    }
+    /**
      * Update records
      */
     async update(tableName, query, update, options = { multi: true }) {
@@ -135,7 +185,11 @@ class DatabaseManager {
                 else {
                     // Broadcast change to renderer
                     if (numReplaced > 0) {
-                        this.broadcastChange({ table: tableName, action: "update", data: { query, update, count: numReplaced } });
+                        this.broadcastChange({
+                            table: tableName,
+                            action: "update",
+                            data: { query, update, count: numReplaced },
+                        });
                     }
                     resolve(numReplaced);
                 }
@@ -155,7 +209,11 @@ class DatabaseManager {
                 else {
                     // Broadcast change to renderer
                     if (numRemoved > 0) {
-                        this.broadcastChange({ table: tableName, action: "delete", data: { query, count: numRemoved } });
+                        this.broadcastChange({
+                            table: tableName,
+                            action: "delete",
+                            data: { query, count: numRemoved },
+                        });
                     }
                     resolve(numRemoved);
                 }

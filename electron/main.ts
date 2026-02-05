@@ -47,7 +47,7 @@ async function uploadPendingCrash() {
   try {
     const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
     await axios.post("https://ppsmb.com.ng/api/crash/json", data);
-    fs.unlinkSync(crashFile); 
+    fs.unlinkSync(crashFile);
   } catch (error) {
     log.warn("Failed to upload pending crash report", error);
   }
@@ -246,16 +246,33 @@ function setupTray() {
   });
 }
 
-ipcMain.handle("db:insert", async (_event, tableName: string, doc: any) => {
-  try {
-    const result = await dbManager.insert(tableName, doc);
-    syncService.notifyDataChange();
-    return result;
-  } catch (error) {
-    log.error(`IPC db:insert error in ${tableName}`, error);
-    return false;
-  }
-});
+ipcMain.handle(
+  "db:insert",
+  async (_event, tableName: string, doc: any, incoming = false) => {
+    try {
+      const result = await dbManager.insert(tableName, doc, incoming);
+      syncService.notifyDataChange();
+      return result;
+    } catch (error) {
+      log.error(`IPC db:insert error in ${tableName}`, error);
+      return false;
+    }
+  },
+);
+
+ipcMain.handle(
+  "db:insertMany",
+  async (_event, tableName: string, docs: any[], incoming = false) => {
+    try {
+      const result = await dbManager.insertMany(tableName, docs, incoming);
+      syncService.notifyDataChange();
+      return result;
+    } catch (error) {
+      log.error(`IPC db:insertMany error in ${tableName}`, error);
+      return false;
+    }
+  },
+);
 
 ipcMain.handle(
   "db:find",
@@ -281,6 +298,15 @@ ipcMain.handle("db:findOne", async (_event, tableName: string, query: any) => {
     return await dbManager.findOne(tableName, query);
   } catch (error) {
     log.error(`IPC db:findOne error in ${tableName}`, error);
+    throw error;
+  }
+});
+
+ipcMain.handle("db:findMany", async (_event, tableName: string, query: any) => {
+  try {
+    return await dbManager.findMany(tableName, query);
+  } catch (error) {
+    log.error(`IPC db:findMany error in ${tableName}`, error);
     throw error;
   }
 });

@@ -91,6 +91,7 @@ export default defineComponent({
     mounted() {
         if (!import.meta.client) return;
 
+        this.isLoading = false;
         if (!window.electronAPI || !this.user) {
             return navigateTo('/login');
         }
@@ -171,7 +172,7 @@ export default defineComponent({
             try {
                 const pin = this.pinValue.join('');
 
-                await new Promise(resolve => setTimeout(resolve, 800));
+                await new Promise(resolve => setTimeout(resolve, 200));
 
                 const validData = await window.electronAPI.verifyPin(pin, this.user?.uuid);
 
@@ -191,8 +192,6 @@ export default defineComponent({
             } catch (error: any) {
                 this.pinError = error.message || 'Verification failed. Please try again.';
                 this.pinValue = [];
-            } finally {
-                await new Promise(resolve => setTimeout(resolve, 1000));
                 this.isLoading = false;
             }
         },

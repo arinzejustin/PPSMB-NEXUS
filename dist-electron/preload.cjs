@@ -8,9 +8,11 @@ function on(channel, handler) {
     return () => electron_1.ipcRenderer.removeListener(channel, listener);
 }
 const appBridge = {
-    dbInsert: (tableName, doc) => electron_1.ipcRenderer.invoke("db:insert", tableName, doc),
+    dbInsert: (tableName, doc, incoming = false) => electron_1.ipcRenderer.invoke("db:insert", tableName, doc, incoming),
+    dbInsertMany: (tableName, docs, incoming = false) => electron_1.ipcRenderer.invoke("db:insertMany", tableName, docs, incoming),
     dbFind: (tableName, query, sort, limit, skip) => electron_1.ipcRenderer.invoke("db:find", tableName, query, sort, limit, skip),
     dbFindOne: (tableName, query) => electron_1.ipcRenderer.invoke("db:findOne", tableName, query),
+    dbFindMany: (tableName, query) => electron_1.ipcRenderer.invoke("db:findMany", tableName, query),
     dbUpdate: (tableName, query, update, options) => electron_1.ipcRenderer.invoke("db:update", tableName, query, update, options),
     dbDelete: (tableName, query, options) => electron_1.ipcRenderer.invoke("db:delete", tableName, query, options),
     dbCount: (tableName, query) => electron_1.ipcRenderer.invoke("db:count", tableName, query),

@@ -10,7 +10,7 @@
 
 // Database configuration
 const INDEXED_DB_NAME = "ppsmb_app_db";
-const INDEXED_DB_VERSION = 2; // Incremented to add broadcast stores
+const INDEXED_DB_VERSION = 3; // Incremented to add broadcast stores
 
 // Store names for IndexedDB
 export const STORES = {
@@ -22,6 +22,7 @@ export const STORES = {
   BROADCAST_DRAFTS: "broadcast_drafts",
   BROADCAST_HISTORY: "broadcast_history",
   BROADCAST_TEMPLATES: "broadcast_templates",
+  INTERNAL_MAIL_DRAFTS: "internal_mail_drafts",
 } as const;
 
 type StoreName = (typeof STORES)[keyof typeof STORES] | string;
@@ -128,6 +129,39 @@ class IndexedDBManager {
     });
   }
 
+  async insertMany<T extends DBRecord>(
+    storeName: StoreName,
+    docs: T[],
+    incoming: boolean = false,
+  ): Promise<T[]> {
+    if (docs.length === 0) return [];
+
+    const db = await this.ensureDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([storeName], "readwrite");
+      const store = transaction.objectStore(storeName);
+
+      const inserted: T[] = [];
+
+      docs.forEach((doc) => {
+        const record = {
+          ...doc,
+          _id: doc._id || this.generateId(),
+          createdAt: doc.createdAt || new Date(),
+          updatedAt: new Date(),
+          synced: incoming ? true : false,
+        };
+
+        const req = store.add(record);
+        req.onsuccess = () => inserted.push(record as T);
+      });
+
+      transaction.oncomplete = () => resolve(inserted);
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
   async find<T extends DBRecord>(
     storeName: StoreName,
     query?: Partial<T>,
@@ -205,6 +239,20 @@ class IndexedDBManager {
   ): Promise<T | null> {
     const results = await this.find<T>(storeName, query, { limit: 1 });
     return results[0] || null;
+  }
+
+  async findManyIds(
+    storeName: StoreName,
+    ids: string[],
+    idField: string = "id",
+  ): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+
+    const records = await this.find<any>(storeName, {
+      [idField]: (value: any) => ids.includes(value),
+    });
+
+    return new Set(records.map((r) => r[idField]));
   }
 
   async update<T extends DBRecord>(
@@ -310,9 +358,26 @@ class IndexedDBManager {
  * Electron DB Wrapper that uses IPC to communicate with main process
  */
 class ElectronDBManager {
-  async insert<T extends DBRecord>(tableName: string, doc: T): Promise<T> {
-    const result = await window.electronAPI!.dbInsert(tableName, doc);
+  async insert<T extends DBRecord>(
+    tableName: string,
+    doc: T,
+    incoming: boolean = false,
+  ): Promise<T> {
+    const result = await window.electronAPI!.dbInsert(tableName, doc, incoming);
     return result as T;
+  }
+
+  async insertMany<T extends DBRecord>(
+    tableName: string,
+    docs: T[],
+    incoming: boolean = false,
+  ): Promise<T[]> {
+    const result = await window.electronAPI!.dbInsertMany(
+      tableName,
+      docs,
+      incoming,
+    );
+    return result as T[];
   }
 
   async find<T extends DBRecord>(
@@ -368,6 +433,20 @@ class ElectronDBManager {
   async syncRecords(): Promise<{ success: boolean; error?: string }> {
     return await window.electronAPI!.syncRecords();
   }
+
+  async findManyIds(
+    tableName: string,
+    ids: string[],
+    idField: string = "id",
+  ): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+
+    const records = await window.electronAPI!.dbFindMany<any>(tableName, {
+      [idField]: { $in: ids },
+    });
+
+    return new Set(records.map((r: { [x: string]: any }) => r[idField]));
+  }
 }
 
 // Singleton instances
@@ -397,11 +476,33 @@ export const db = {
   /**
    * Insert a document into the database
    */
-  async insert<T extends DBRecord>(tableName: string, doc: T): Promise<T> {
+  async insert<T extends DBRecord>(
+    tableName: string,
+    doc: T,
+    incoming: boolean = false,
+  ): Promise<T> {
     if (isElectron()) {
-      return getElectronDBManager().insert(tableName, doc);
+      return getElectronDBManager().insert(tableName, doc, incoming);
     }
     return getIndexedDBManager().insert(tableName as StoreName, doc);
+  },
+
+  /**
+   * Insert multiple documents into the database
+   */
+  async insertMany<T extends DBRecord>(
+    tableName: string,
+    docs: T[],
+    incoming: boolean = false,
+  ): Promise<T[]> {
+    if (isElectron()) {
+      return getElectronDBManager().insertMany(tableName, docs, incoming);
+    }
+    return getIndexedDBManager().insertMany(
+      tableName as StoreName,
+      docs,
+      incoming,
+    );
   },
 
   /**
@@ -429,6 +530,24 @@ export const db = {
       return getElectronDBManager().findOne(tableName, query);
     }
     return getIndexedDBManager().findOne(tableName as StoreName, query);
+  },
+
+  /**
+   * Find multiple documents by their IDs
+   */
+  async findManyIds(
+    tableName: string,
+    ids: string[],
+    idField: string = "id",
+  ): Promise<Set<string>> {
+    if (isElectron()) {
+      return getElectronDBManager().findManyIds(tableName, ids, idField);
+    }
+    return getIndexedDBManager().findManyIds(
+      tableName as StoreName,
+      ids,
+      idField,
+    );
   },
 
   /**

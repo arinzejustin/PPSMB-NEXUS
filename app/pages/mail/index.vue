@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue';
 import { definePageMeta, useHead } from '#imports';
 import {
   Search,
-  Filter,
   Plus,
   MoreHorizontal,
   Inbox,
@@ -12,7 +11,6 @@ import {
   Star,
   Trash2,
   Mail,
-  MailOpen,
   Paperclip,
   Clock,
   ChevronRight,
@@ -28,253 +26,202 @@ import {
   Printer,
   X,
   RefreshCw,
-  CheckCheck
+  CheckCheck,
+  FileText,
+  ArchiveRestore
 } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { format, formatDistanceToNow } from 'date-fns';
+import { useInternalMail } from '@/composables/useInternalMail';
+import { useIsDesktop } from "@/composables/useIsDesktop"
+import { useEditor, EditorContent } from '@tiptap/vue-3';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import type { InternalMail } from '@/types/mail';
 
 definePageMeta({
   layout: 'app',
-  middleware: "user-validate"
+  middleware: ["user-validate"]
 });
 
+
 useHead({
-  title: ""
+  title: useIsDesktop() ? "PPSMB File Manager" : "Mail & Correspondence"
 })
+
+// --- Internal Mail Logic ---
+// We now get 'allMails' and 'fetchMails' from the composable
+const {
+  groupedRecipients,
+  sendInternalMessage,
+  isSending,
+  allMails,
+  fetchMails,
+  isLoading,
+  markAsRead: markAsReadAction,
+  toggleStar: toggleStarAction,
+  deleteMessages: deleteMessagesAction,
+  archiveHandler: archiveMessagesAction,
+  refresh: refreshMails,
+} = useInternalMail();
+
+const isComposeOpen = ref(false);
+const composeForm = ref({
+  recipients: [] as any[],
+  subject: '',
+  body: '',
+  attachments: [] as File[]
+});
+
+const editor = useEditor({
+  content: '',
+  extensions: [
+    StarterKit,
+    Placeholder.configure({
+      placeholder: 'Write your memo here...',
+    }),
+  ],
+  onUpdate: ({ editor }) => {
+    composeForm.value.body = editor.getHTML();
+  },
+  editorProps: {
+    attributes: {
+      class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] p-4',
+    },
+  },
+});
+
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const triggerFileSelect = () => {
+  fileInputRef.value?.click();
+};
+
+const handleFileSelect = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files) {
+    for (let i = 0; i < input.files.length; i++) {
+      composeForm.value.attachments.push(input.files[i]!);
+    }
+  }
+  // Reset input
+  if (input) input.value = '';
+};
+
+const removeAttachment = (index: number) => {
+  composeForm.value.attachments.splice(index, 1);
+};
+
+// Fix TS error: accept 'any' type for the event value
+const addRecipient = (value: any) => {
+  const recipientId = value as string;
+  // Find recipient in groups
+  let recipient: any = null;
+  for (const group of groupedRecipients.value) {
+    const found = group.items.find(i => i.id === recipientId);
+    if (found) {
+      recipient = found;
+      break;
+    }
+  }
+
+  if (recipient) {
+    // Check if already added
+    if (!composeForm.value.recipients.find(r => r.id === recipient.id)) {
+      composeForm.value.recipients.push(recipient);
+    }
+  }
+};
+
+const removeRecipient = (index: number) => {
+  composeForm.value.recipients.splice(index, 1);
+};
+
+const handleSend = async () => {
+  if (composeForm.value.recipients.length === 0 || !composeForm.value.subject) return;
+
+  const result = await sendInternalMessage({
+    subject: composeForm.value.subject,
+    body: composeForm.value.body,
+    to: composeForm.value.recipients,
+    attachments: composeForm.value.attachments.map(f => ({
+      id: `file-${Date.now()}`,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+      file: f
+    }))
+  });
+
+  if (result.success) {
+    isComposeOpen.value = false;
+    // Reset form
+    composeForm.value = {
+      recipients: [],
+      subject: '',
+      body: '',
+      attachments: []
+    };
+    editor.value?.commands.clearContent();
+    // Ideally show a toast here
+  }
+};
+
+onMounted(() => {
+  fetchMails();
+});
+
+onBeforeUnmount(() => {
+  editor.value?.destroy();
+});
+
+// --- Existing Mail Logic ---
 
 const searchQuery = ref('');
 const activeTab = ref('inbox');
-const selectedMail = ref<any>(null);
+const selectedMail = ref<InternalMail | null>(null);
 const selectedMails = ref<string[]>([]);
-const isComposing = ref(false);
 
 // Mail categories/folders counts
+// Compute counts based on live data
 const folderCounts = computed(() => ({
   inbox: allMails.value.filter(m => m.folder === 'inbox' && !m.isRead).length,
   sent: allMails.value.filter(m => m.folder === 'sent').length,
   archive: allMails.value.filter(m => m.folder === 'archive').length,
   starred: allMails.value.filter(m => m.isStarred).length
 }));
-
-// Mock mail data
-const allMails = ref([
-  {
-    id: 'ML001',
-    folder: 'inbox',
-    from: {
-      name: 'Ministry of Education',
-      email: 'ministry@ed.gov.ng',
-      avatar: ''
-    },
-    to: ['ppsmb@ed.gov.ng'],
-    subject: 'Annual Teacher Census Report Request',
-    preview: 'Please submit the annual teacher census report for all zones by January 31st, 2026. This report should include...',
-    body: `Dear PPSMB Director,
-
-Please submit the annual teacher census report for all zones by January 31st, 2026. This report should include the following information:
-
-1. Total number of teachers per zone
-2. Qualification breakdown
-3. Certification status summary
-4. Transfer statistics for the year
-5. New hires and retirements
-
-The report format should follow the attached template. Please ensure all data is accurate and up-to-date.
-
-Best regards,
-Ministry of Education`,
-    date: new Date(Date.now() - 1000 * 60 * 30),
-    isRead: false,
-    isStarred: true,
-    hasAttachment: true,
-    attachments: [
-      { name: 'Report_Template.xlsx', size: '245 KB' }
-    ],
-    priority: 'high',
-    tags: ['urgent', 'report']
-  },
-  {
-    id: 'ML002',
-    folder: 'inbox',
-    from: {
-      name: 'Enugu North Zonal Office',
-      email: 'enugu.north@ppsmb.edu.ng',
-      avatar: ''
-    },
-    to: ['ppsmb@ed.gov.ng'],
-    subject: 'Monthly Transfer Requests Summary',
-    preview: 'Attached is the summary of transfer requests for Enugu North Zone for the month of January 2026...',
-    body: `Good day,
-
-Attached is the summary of transfer requests for Enugu North Zone for the month of January 2026. We have received 12 new transfer requests this month.
-
-Summary:
-- Approved: 5
-- Pending Review: 4
-- Rejected: 2
-- Under Investigation: 1
-
-Please review the pending cases at your earliest convenience.
-
-Thank you,
-Enugu North Zonal Office`,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 3),
-    isRead: true,
-    isStarred: false,
-    hasAttachment: true,
-    attachments: [
-      { name: 'Transfer_Summary_Jan2026.pdf', size: '1.2 MB' }
-    ],
-    priority: 'normal',
-    tags: ['transfer']
-  },
-  {
-    id: 'ML003',
-    folder: 'inbox',
-    from: {
-      name: 'Mrs. Chioma Eze',
-      email: 'chioma.eze@ppsmb.edu.ng',
-      avatar: ''
-    },
-    to: ['hr@ppsmb.edu.ng'],
-    subject: 'Certification Renewal Application',
-    preview: 'I am writing to apply for the renewal of my teaching certification which is due to expire on March 15, 2026...',
-    body: `Dear HR Department,
-
-I am writing to apply for the renewal of my teaching certification which is due to expire on March 15, 2026.
-
-I have attached all required documents including:
-- Current certification copy
-- Professional development certificates
-- Employment verification letter
-- Recent passport photographs
-
-Please let me know if any additional documents are required.
-
-Best regards,
-Mrs. Chioma Eze
-TCH003`,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    isRead: true,
-    isStarred: false,
-    hasAttachment: true,
-    attachments: [
-      { name: 'Certification_Docs.zip', size: '3.4 MB' }
-    ],
-    priority: 'normal',
-    tags: ['certification']
-  },
-  {
-    id: 'ML004',
-    folder: 'inbox',
-    from: {
-      name: 'IT Department',
-      email: 'it@ppsmb.edu.ng',
-      avatar: ''
-    },
-    to: ['all-staff@ppsmb.edu.ng'],
-    subject: 'System Maintenance Notice - January 25th',
-    preview: 'Please be informed that the PPSMB File Management System will undergo scheduled maintenance...',
-    body: `Dear All,
-
-Please be informed that the PPSMB File Management System will undergo scheduled maintenance on January 25th, 2026 from 10:00 PM to 2:00 AM.
-
-During this time:
-- The system will be unavailable
-- Please save all work before the maintenance window
-- Pending sync operations will resume after maintenance
-
-We apologize for any inconvenience.
-
-IT Department`,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 48),
-    isRead: false,
-    isStarred: false,
-    hasAttachment: false,
-    attachments: [],
-    priority: 'normal',
-    tags: ['system']
-  },
-  {
-    id: 'ML005',
-    folder: 'sent',
-    from: {
-      name: 'PPSMB Admin',
-      email: 'admin@ppsmb.edu.ng',
-      avatar: ''
-    },
-    to: ['ministry@ed.gov.ng'],
-    subject: 'Re: Annual Teacher Census Report Request',
-    preview: 'Thank you for your correspondence. We acknowledge receipt of your request for the annual report...',
-    body: `Dear Ministry of Education,
-
-Thank you for your correspondence. We acknowledge receipt of your request for the annual teacher census report.
-
-We are currently compiling the data from all zones and will submit the complete report before the January 31st deadline.
-
-Best regards,
-PPSMB Administration`,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    isRead: true,
-    isStarred: false,
-    hasAttachment: false,
-    attachments: [],
-    priority: 'normal',
-    tags: ['report']
-  },
-  {
-    id: 'ML006',
-    folder: 'archive',
-    from: {
-      name: 'Training Department',
-      email: 'training@ppsmb.edu.ng',
-      avatar: ''
-    },
-    to: ['all-teachers@ppsmb.edu.ng'],
-    subject: 'Professional Development Workshop - December 2025',
-    preview: 'Thank you to all teachers who participated in the Professional Development Workshop held last month...',
-    body: `Dear Teachers,
-
-Thank you to all teachers who participated in the Professional Development Workshop held last month. The event was a great success with over 500 participants.
-
-Certificates of participation have been uploaded to your profiles and can be downloaded from the system.
-
-Best regards,
-Training Department`,
-    date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
-    isRead: true,
-    isStarred: true,
-    hasAttachment: true,
-    attachments: [
-      { name: 'Workshop_Report.pdf', size: '890 KB' }
-    ],
-    priority: 'low',
-    tags: ['training']
-  }
-]);
 
 // Filtered mails based on active tab and search
 const filteredMails = computed(() => {
@@ -302,11 +249,13 @@ const filteredMails = computed(() => {
 });
 
 const toggleStar = (mail: any) => {
-  mail.isStarred = !mail.isStarred;
+  // Use composable action which updates state and DB
+  toggleStarAction(mail.id);
 };
 
 const markAsRead = (mail: any) => {
-  mail.isRead = true;
+  // Use composable action which updates state and DB
+  markAsReadAction(mail.id);
   selectedMail.value = mail;
 };
 
@@ -335,16 +284,18 @@ const toggleSelectMail = (id: string) => {
   }
 };
 
-const archiveSelected = () => {
-  selectedMails.value.forEach(id => {
-    const mail = allMails.value.find(m => m.id === id);
-    if (mail) mail.folder = 'archive';
-  });
+const handleArchiveSelected = async (unarchive: boolean = false) => {
+  await archiveMessagesAction(selectedMails.value, unarchive);
   selectedMails.value = [];
 };
 
-const deleteSelected = () => {
-  allMails.value = allMails.value.filter(m => !selectedMails.value.includes(m.id));
+const handleSingleArchive = async (id: string, unarchive: boolean = false) => {
+  await archiveMessagesAction([id], unarchive);
+  selectedMail.value = null;
+};
+
+const deleteSelected = async () => {
+  await deleteMessagesAction(selectedMails.value);
   selectedMails.value = [];
 };
 </script>
@@ -360,27 +311,131 @@ const deleteSelected = () => {
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" @click="fetchMails(1, true)">
           <RefreshCw class="w-4 h-4 mr-2" />
           Sync
         </Button>
-        <Button size="sm" @click="isComposing = true">
-          <Plus class="w-4 h-4 mr-2" />
-          Compose
-        </Button>
+
+        <Dialog v-model:open="isComposeOpen">
+          <DialogTrigger as-child>
+            <Button size="sm">
+              <Plus class="w-4 h-4 mr-2" />
+              New Internal Memo
+            </Button>
+          </DialogTrigger>
+          <DialogContent class="sm:max-w-[700px] flex flex-col h-[85vh]">
+            <DialogHeader>
+              <DialogTitle>New Internal Memo</DialogTitle>
+              <DialogDescription>
+                Send official correspondence to departments or staff.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div class="flex-1 flex flex-col gap-4 py-4 overflow-y-auto hidden-scrollbar">
+              <!-- To Field -->
+              <div class="space-y-2">
+                <div class="flex flex-wrap gap-2 mb-2 p-2 border rounded-md min-h-[42px] bg-background">
+                  <Badge v-for="(recipient, index) in composeForm.recipients" :key="recipient.id" variant="secondary"
+                    class="flex items-center gap-1 pl-2 pr-1 py-1">
+                    <component :is="recipient.type === 'department' ? Building2 : User"
+                      class="w-3 h-3 text-muted-foreground" />
+                    <span>{{ recipient.label }}</span>
+                    <button @click="removeRecipient(index)"
+                      class="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5">
+                      <X class="w-3 h-3" />
+                    </button>
+                  </Badge>
+                  <Select @update:model-value="addRecipient">
+                    <SelectTrigger class="border-0 shadow-none h-8 w-auto min-w-[150px] p-0 focus:ring-0">
+                      <SelectValue placeholder="Add recipient..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <template v-for="group in groupedRecipients" :key="group.label">
+                        <SelectGroup>
+                          <SelectLabel>{{ group.label }}</SelectLabel>
+                          <SelectItem v-for="item in group.items" :key="item.id" :value="item.id">
+                            <div class="flex items-center gap-2">
+                              <component :is="item.type === 'department' ? Building2 : User"
+                                class="w-4 h-4 text-muted-foreground" />
+                              <div class="flex flex-col text-left">
+                                <span>{{ item.label }}</span>
+                                <span class="text-xs text-muted-foreground" v-if="item.desc">{{ item.desc }}</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        </SelectGroup>
+                        <DropdownMenuSeparator />
+                      </template>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <!-- Subject -->
+              <div class="space-y-1">
+                <Input v-model="composeForm.subject" placeholder="Memo Subject"
+                  class="text-base font-medium px-4 py-6 border-0 shadow-sm ring-1 ring-inset ring-border focus-visible:ring-2 focus-visible:ring-primary bg-muted/20" />
+              </div>
+
+              <!-- Body (Rich Text) -->
+              <div class="flex-1 border rounded-md overflow-hidden flex flex-col bg-background shadow-sm">
+                <!-- Toolbar could go here -->
+                <div class="border-b px-3 py-2 bg-muted/30 flex items-center gap-2">
+                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Memo Content</span>
+                </div>
+                <div class="flex-1 overflow-y-auto">
+                  <editor-content :editor="editor" />
+                </div>
+              </div>
+
+              <!-- Attachments -->
+              <div v-if="composeForm.attachments.length > 0" class="space-y-2">
+                <p class="text-xs font-semibold text-muted-foreground">Attachments</p>
+                <div class="flex flex-wrap gap-2">
+                  <div v-for="(file, index) in composeForm.attachments" :key="index"
+                    class="flex items-center gap-2 text-sm p-2 border rounded-md bg-muted/40">
+                    <Paperclip class="w-3 h-3 text-muted-foreground" />
+                    <span class="max-w-[200px] truncate">{{ file.name }}</span>
+                    <span class="text-xs text-muted-foreground">({{ (file.size / 1024).toFixed(0) }} KB)</span>
+                    <button @click="removeAttachment(index)" class="hover:text-destructive">
+                      <X class="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter class="sm:justify-between items-center border-t pt-4">
+              <div class="flex items-center gap-2">
+                <input type="file" ref="fileInputRef" multiple class="hidden" @change="handleFileSelect" />
+                <Button type="button" variant="outline" size="sm" @click="triggerFileSelect">
+                  <Paperclip class="w-4 h-4 mr-2" />
+                  Attach File
+                </Button>
+              </div>
+              <div class="flex items-center gap-2">
+                <Button type="button" variant="ghost" @click="isComposeOpen = false">Discard</Button>
+                <Button type="button" @click="handleSend" :disabled="isSending">
+                  <Send class="w-4 h-4 mr-2" />
+                  {{ isSending ? 'Sending...' : 'Send Memo' }}
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
 
     <!-- Main Content -->
     <div class="grid grid-cols-12 gap-6">
       <!-- Sidebar -->
-      <Card class="col-span-12 lg:col-span-3">
+      <Card class="col-span-12 lg:col-span-3 h-fit shadow-lg">
         <CardContent class="p-4">
-          <nav class="space-y-1">
-            <button @click="activeTab = 'inbox'" :class="[
-              'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+          <nav class="space-y-2">
+            <button @click="activeTab = 'inbox', selectedMail = null" :class="[
+              'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-500',
               activeTab === 'inbox'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-linear-to-br from-emerald-500 dark:from-emerald-400 to-primary/40 text-primary-foreground shadow-lg'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             ]">
               <div class="flex items-center gap-3">
@@ -391,10 +446,10 @@ const deleteSelected = () => {
                 {{ folderCounts.inbox }}
               </Badge>
             </button>
-            <button @click="activeTab = 'sent'" :class="[
-              'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+            <button @click="activeTab = 'sent', selectedMail = null" :class="[
+              'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-500',
               activeTab === 'sent'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-linear-to-br from-emerald-500 dark:from-emerald-400 to-primary/40 text-primary-foreground shadow-lg'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             ]">
               <div class="flex items-center gap-3">
@@ -402,10 +457,10 @@ const deleteSelected = () => {
                 <span>Sent</span>
               </div>
             </button>
-            <button @click="activeTab = 'starred'" :class="[
-              'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+            <button @click="activeTab = 'starred', selectedMail = null" :class="[
+              'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-500',
               activeTab === 'starred'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-linear-to-br from-emerald-500 dark:from-emerald-400 to-primary/40 text-primary-foreground shadow-lg'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             ]">
               <div class="flex items-center gap-3">
@@ -416,10 +471,10 @@ const deleteSelected = () => {
                 {{ folderCounts.starred }}
               </Badge>
             </button>
-            <button @click="activeTab = 'archive'" :class="[
-              'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+            <button @click="activeTab = 'archive', selectedMail = null" :class="[
+              'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-500',
               activeTab === 'archive'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-linear-to-br from-emerald-500 dark:from-emerald-400 to-primary/40 text-primary-foreground shadow-lg'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             ]">
               <div class="flex items-center gap-3">
@@ -435,20 +490,23 @@ const deleteSelected = () => {
           <div class="space-y-2">
             <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">Tags</p>
             <div class="flex flex-wrap gap-2 px-3">
-              <Badge variant="outline" class="cursor-pointer hover:bg-muted">urgent</Badge>
-              <Badge variant="outline" class="cursor-pointer hover:bg-muted">report</Badge>
-              <Badge variant="outline" class="cursor-pointer hover:bg-muted">transfer</Badge>
-              <Badge variant="outline" class="cursor-pointer hover:bg-muted">certification</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Urgent</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Report</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Transfer</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Certification</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Priority</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Project</Badge>
+              <Badge variant="outline" class="cursor-pointer hover:bg-muted">Proposal</Badge>
             </div>
           </div>
         </CardContent>
       </Card>
 
       <!-- Mail List or Detail View -->
-      <Card class="col-span-12 lg:col-span-9">
+      <Card class="col-span-12 lg:col-span-9 shadow-lg">
         <!-- Mail List View -->
         <template v-if="!selectedMail">
-          <CardHeader class="pb-3">
+          <CardHeader class="pb-3 mb-5">
             <div class="flex items-center justify-between">
               <CardTitle class="text-lg capitalize">{{ activeTab }}</CardTitle>
               <div class="flex items-center gap-2">
@@ -462,7 +520,11 @@ const deleteSelected = () => {
             <div v-if="selectedMails.length > 0" class="flex items-center gap-2 mt-3 p-2 bg-muted rounded-lg">
               <span class="text-sm text-muted-foreground">{{ selectedMails.length }} selected</span>
               <div class="flex-1"></div>
-              <Button variant="ghost" size="sm" @click="archiveSelected">
+              <Button v-if="activeTab === 'archive'" variant="ghost" size="sm" @click="handleArchiveSelected(true)">
+                <ArchiveRestore class="w-4 h-4 mr-1" />
+                Unarchive
+              </Button>
+              <Button v-else variant="ghost" size="sm" @click="handleArchiveSelected(false)">
                 <Archive class="w-4 h-4 mr-1" />
                 Archive
               </Button>
@@ -474,12 +536,25 @@ const deleteSelected = () => {
           </CardHeader>
           <CardContent class="p-0">
             <ScrollArea class="h-[600px]">
-              <div class="divide-y">
+
+              <!-- Loading Skeleton -->
+              <div v-if="isLoading && filteredMails.length === 0" class="p-4 space-y-4">
+                <div v-for="i in 5" :key="i" class="flex items-start gap-4">
+                  <div class="w-10 h-10 rounded-full bg-muted animate-pulse shrink-0"></div>
+                  <div class="flex-1 space-y-2">
+                    <div class="h-4 bg-muted animate-pulse rounded w-1/3"></div>
+                    <div class="h-4 bg-muted animate-pulse rounded w-1/2"></div>
+                    <div class="h-3 bg-muted animate-pulse rounded w-3/4"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="divide-y">
                 <div v-for="mail in filteredMails" :key="mail.id" :class="[
                   'flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-muted/50',
                   !mail.isRead ? 'bg-primary/5' : ''
                 ]" @click="markAsRead(mail)">
-                  <Checkbox :checked="selectedMails.includes(mail.id)" @update:checked="toggleSelectMail(mail.id)"
+                  <Checkbox :modelValue="selectedMails.includes(mail.id)" @update:modelValue="toggleSelectMail(mail.id)"
                     @click.stop class="mt-1" />
                   <button @click.stop="toggleStar(mail)" class="mt-1">
                     <Star :class="[
@@ -526,7 +601,7 @@ const deleteSelected = () => {
                 </div>
 
                 <!-- Empty State -->
-                <div v-if="filteredMails.length === 0" class="p-12 text-center">
+                <div v-if="!isLoading && filteredMails.length === 0" class="p-12 text-center">
                   <Mail class="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                   <p class="text-muted-foreground">No messages in {{ activeTab }}</p>
                 </div>
@@ -547,8 +622,13 @@ const deleteSelected = () => {
               <Button variant="ghost" size="sm" @click="toggleStar(selectedMail)">
                 <Star :class="['w-4 h-4', selectedMail.isStarred ? 'fill-amber-400 text-amber-400' : '']" />
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button v-if="selectedMail.folder === 'inbox'" variant="ghost" size="sm"
+                @click="handleSingleArchive(selectedMail.id, false)">
                 <Archive class="w-4 h-4" />
+              </Button>
+              <Button v-if="selectedMail.folder === 'archive'" variant="ghost" size="sm"
+                @click="handleSingleArchive(selectedMail.id, true)">
+                <ArchiveRestore class="w-4 h-4" />
               </Button>
               <Button variant="ghost" size="sm">
                 <Printer class="w-4 h-4" />
@@ -589,8 +669,8 @@ const deleteSelected = () => {
               <!-- From/To -->
               <div class="flex items-start gap-4">
                 <Avatar class="w-12 h-12">
-                  <AvatarImage :src="selectedMail.from.avatar" />
-                  <AvatarFallback class="bg-primary/10 text-primary">
+                  <AvatarImage v-if="selectedMail.from.avatar" :src="selectedMail.from.avatar" />
+                  <AvatarFallback v-else class="bg-primary/10 text-primary">
                     {{ getInitials(selectedMail.from.name) }}
                   </AvatarFallback>
                 </Avatar>
@@ -663,3 +743,19 @@ const deleteSelected = () => {
     </div>
   </div>
 </template>
+
+<style>
+/* Tiptap styles */
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
+}
+</style>
