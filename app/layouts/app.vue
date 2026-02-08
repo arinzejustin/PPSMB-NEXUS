@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/app/AppSidebar.vue';
-import { ref, onMounted, onUnmounted } from '#imports';
+import { ref, onMounted, onUnmounted, watch } from '#imports';
 import { useWebSocketConnection } from '@/composables/useWebSocket';
-import { useAppCleanUp } from "@/composables/useAppCleanUp"
+import { useAppCleanUp } from "@/composables/useAppCleanUp";
+import { usePrinter } from "@/composables/usePrinter";
 
 const { connect } = useWebSocketConnection();
+const { hasTriggerPrint, printProgress, cancelPrint, reorderPrint, queuePrint } = usePrinter();
 
 const isCollapsed = ref(true);
-const isMobile = ref<InstanceType<typeof AppSidebar> | null>(null)
+const isMobile = ref<InstanceType<typeof AppSidebar> | null>(null);
+const printProgressModal = ref(false);
 
 const handleCollapsed = (value: boolean) => {
   isCollapsed.value = value
@@ -16,6 +19,12 @@ const handleCollapsed = (value: boolean) => {
 const openMobileSideBar = () => {
   isMobile.value?.toggleCollapse()
 }
+
+watch(hasTriggerPrint, (val) => {
+  if (val) {
+    printProgressModal.value = true;
+  }
+})
 
 onMounted(() => {
   connect();

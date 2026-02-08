@@ -1,5 +1,4 @@
 import { ref, watch } from "vue";
-import { isElectron } from "~/lib/db";
 
 /** Print job configuration */
 export type PrintJob = {
@@ -15,6 +14,9 @@ export type PrintProgress = {
   status: string;
   jobId: string;
   name?: string;
+  size?: string;
+  date?: string;
+  // copies?: number;
 };
 
 const printProgress = ref<PrintProgress[]>([]);
@@ -124,6 +126,7 @@ export const usePrinter = () => {
     printProgress,
     selectedPrinter,
     printSilent,
+    hasTriggerPrint,
 
     // Methods
     loadPrinters,

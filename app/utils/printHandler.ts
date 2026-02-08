@@ -4,7 +4,12 @@ import { showToast } from "@/utils/toast";
 
 export const printHandler = async (
   content?: string,
-  electronOptions?: { silent?: boolean; printer?: string; name?: string },
+  electronOptions?: {
+    silent?: boolean;
+    printer?: string;
+    name?: string;
+    size?: string;
+  },
 ) => {
   if (typeof window === "undefined") return;
 
@@ -21,6 +26,8 @@ export const printHandler = async (
       status: "Queued",
       jobId: id,
       name,
+      size: electronOptions?.size || "Unknown",
+      date: new Date().toISOString(),
     });
 
     return await queuePrint({

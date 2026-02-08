@@ -168,4 +168,5 @@ export type PrintJob = {
   printer?: string;
   silent: boolean;
   name: string;
+  cancelled?: boolean;
 };

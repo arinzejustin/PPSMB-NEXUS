@@ -104,7 +104,7 @@ function handleUserIdle() {
 }
 
 async function processQueue() {
-  if (activeJob || queue.length === 0) return;
+  if (activeJob || !queue.length) return;
 
   activeJob = queue.shift()!;
   sendProgress("Printing", activeJob.id);
@@ -113,12 +113,17 @@ async function processQueue() {
     show: false,
     webPreferences: { sandbox: true },
   });
+  const cleanup = (status?: string) => {
+    status && sendProgress(status, activeJob!.id);
+    printerWin.close();
+    activeJob = null;
+    processQueue();
+  };
 
   try {
     await printerWin.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(activeJob.html)}`,
     );
-
     printerWin.webContents.print(
       {
         silent: activeJob.silent,
@@ -131,30 +136,22 @@ async function processQueue() {
             "Printing Error",
             "Failed to print document. Please try again.",
           );
-          printerWin?.close();
-          return;
+          return printerWin.close();
         }
+        if (activeJob.cancelled) return cleanup("Cancelled");
         if (!success) {
           await exportPDF(activeJob.html, activeJob.name);
-          sendProgress("PDF Fallback", activeJob.id);
-        } else {
-          sendProgress("Completed", activeJob.id);
+          return cleanup("PDF Fallback");
         }
-        // Cleanup after print callback completes
-        printerWin?.close();
-        activeJob = null;
-        processQueue();
+        cleanup("Completed");
       },
     );
-  } catch (error) {
+  } catch {
     NotificationService.show(
       "Printing Error",
       "Failed to print document. Please try again.",
     );
-    sendProgress("Failed", activeJob.id);
-    printerWin?.close();
-    activeJob = null;
-    processQueue();
+    cleanup("Failed");
   }
 }
 
@@ -163,7 +160,7 @@ async function exportPDF(html: string, fileName: string) {
   await pdfWin.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
   );
-  await new Promise(resolve => setTimeout(resolve, 10000));
+  await new Promise((resolve) => setTimeout(resolve, 10000));
   const pdf = await pdfWin.webContents.printToPDF({});
 
   // Ensure PDF directory exists
@@ -618,10 +615,17 @@ ipcMain.handle("queue-print", (_event, job: PrintJob) => {
 
 ipcMain.handle("cancel-print", (_event, jobId: string) => {
   queue = queue.filter((j) => j.id !== jobId);
+  if (activeJob?.id === jobId) {
+    activeJob.cancelled = true;
+    sendProgress("Cancelled", jobId);
+  }
 });
 
 ipcMain.handle("reorder-print", (_event, ids: string[]) => {
-  queue = ids.map((id) => queue.find((j) => j.id === id)!).filter(Boolean);
+  queue = ids
+    .map((id) => queue.find((j) => j.id === id))
+    .filter((j): j is PrintJob => Boolean(j));
+  if (!activeJob) processQueue();
 });
 
 ipcMain.handle("get-printers", async () => {
