@@ -23,7 +23,7 @@ import { ensureExternalFileExists } from "./utils/downloadScanner.js";
 import { dbManager } from "./database/app.db.js";
 import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
-import type { UserDetails, Auth } from "./types.js";
+import type { UserDetails, Auth, PrintJob } from "./types.js";
 
 app.setAppUserModelId("PPSMB Staff Manager");
 
@@ -34,6 +34,25 @@ let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isAppQuitting = false;
 let idleCheckInterval: NodeJS.Timeout | null = null;
+let queue: PrintJob[] = [];
+let activeJob: PrintJob | null = null;
+
+// Constants
+const SESSION_EXPIRY_SECONDS = 60 * 60 * 24; // 24 hours
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+
+crashReporter.start({
+  productName: "Staff Manager",
+  companyName: "PPSMB",
+  submitURL: "https://api.axiolot.com.ng/ppsmb/crash/native",
+  uploadToServer: true,
+  compress: true,
+  ignoreSystemCrashHandler: false,
+  extra: {
+    version: app.getVersion(),
+    platform: process.platform,
+  },
+});
 
 async function uploadPendingCrash() {
   const crashFile = path.join(
@@ -52,19 +71,6 @@ async function uploadPendingCrash() {
     log.warn("Failed to upload pending crash report", error);
   }
 }
-
-crashReporter.start({
-  productName: "Staff Manager",
-  companyName: "PPSMB",
-  submitURL: "https://api.axiolot.com.ng/ppsmb/crash/native",
-  uploadToServer: true,
-  compress: true,
-  ignoreSystemCrashHandler: false,
-  extra: {
-    version: app.getVersion(),
-    platform: process.platform,
-  },
-});
 
 function sendCrashReport(error: Error, origin: string) {
   try {
@@ -87,12 +93,93 @@ function sendCrashReport(error: Error, origin: string) {
     };
 
     fs.writeFileSync(crashFile, JSON.stringify(crash, null, 2));
-  } catch {}
+  } catch (err) {
+    console.error("Failed to save crash report:", err);
+  }
 }
 
 function handleUserIdle() {
   if (!win || win.isDestroyed()) return;
   win.webContents.send("idle");
+}
+
+async function processQueue() {
+  if (activeJob || queue.length === 0) return;
+
+  activeJob = queue.shift()!;
+  sendProgress("Printing", activeJob.id);
+
+  const printerWin = new BrowserWindow({
+    show: false,
+    webPreferences: { sandbox: true },
+  });
+
+  try {
+    await printerWin.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(activeJob.html)}`,
+    );
+
+    printerWin.webContents.print(
+      {
+        silent: activeJob.silent,
+        printBackground: true,
+        deviceName: activeJob.printer,
+      },
+      async (success) => {
+        if (!activeJob) {
+          NotificationService.show(
+            "Printing Error",
+            "Failed to print document. Please try again.",
+          );
+          printerWin?.close();
+          return;
+        }
+        if (!success) {
+          await exportPDF(activeJob.html, activeJob.name);
+          sendProgress("PDF Fallback", activeJob.id);
+        } else {
+          sendProgress("Completed", activeJob.id);
+        }
+        // Cleanup after print callback completes
+        printerWin?.close();
+        activeJob = null;
+        processQueue();
+      },
+    );
+  } catch (error) {
+    NotificationService.show(
+      "Printing Error",
+      "Failed to print document. Please try again.",
+    );
+    sendProgress("Failed", activeJob.id);
+    printerWin?.close();
+    activeJob = null;
+    processQueue();
+  }
+}
+
+async function exportPDF(html: string, fileName: string) {
+  const pdfWin = new BrowserWindow({ show: false });
+  await pdfWin.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
+  );
+  await new Promise(resolve => setTimeout(resolve, 10000));
+  const pdf = await pdfWin.webContents.printToPDF({});
+
+  // Ensure PDF directory exists
+  const pdfDir = path.join(app.getPath("userData"), "pdfs");
+  if (!fs.existsSync(pdfDir)) {
+    fs.mkdirSync(pdfDir, { recursive: true });
+  }
+
+  fs.writeFileSync(path.join(pdfDir, `${fileName}.pdf`), pdf);
+  pdfWin.close();
+}
+
+function sendProgress(status: string, jobId: string) {
+  BrowserWindow.getAllWindows().forEach((w) =>
+    w.webContents.send("print-progress", { status, jobId }),
+  );
 }
 
 async function createWindow() {
@@ -381,7 +468,7 @@ ipcMain.handle("app:navigateHistory", (_event, action: "back" | "forward") => {
 });
 
 ipcMain.handle(
-  "open-modal",
+  "app:openModal",
   (_event, routeUrl: string, options: BrowserWindowConstructorOptions) => {
     const allWindows = BrowserWindow.getAllWindows();
 
@@ -390,7 +477,7 @@ ipcMain.handle(
     if (existingModal) {
       existingModal.focus();
 
-      if (routeUrl.includes("http")) {
+      if (routeUrl.startsWith("http://") || routeUrl.startsWith("https://")) {
         existingModal.loadURL(routeUrl);
       } else {
         existingModal.loadFile(routeUrl);
@@ -418,7 +505,7 @@ ipcMain.handle(
 
     modal.setMenuBarVisibility(false);
 
-    if (routeUrl.includes("http")) {
+    if (routeUrl.startsWith("http://") || routeUrl.startsWith("https://")) {
       modal.loadURL(routeUrl);
     } else {
       modal.loadFile(routeUrl);
@@ -440,11 +527,11 @@ ipcMain.handle("db:sync", async (_event) => {
   }
 });
 
-ipcMain.handle("open-browser", (_event, url: string) => {
+ipcMain.handle("app:openBrowser", (_event, url: string) => {
   shell.openExternal(url);
 });
 
-ipcMain.handle("notification", (_event, title: string, body: string) => {
+ipcMain.handle("app:notification", (_event, title: string, body: string) => {
   NotificationService.show(title, body);
 });
 
@@ -461,7 +548,7 @@ ipcMain.handle("auth:verify-pin", async (_event, pin: string, uuid: string) => {
     storeHelper.setUser(data);
     storeHelper.setSession({
       token: res.token,
-      expiresAt: 60 * 60 * 24,
+      expiresAt: SESSION_EXPIRY_SECONDS,
     });
     syncService.start();
     return data;
@@ -501,7 +588,7 @@ ipcMain.handle(
     storeHelper.setUser(user);
     storeHelper.setSession({
       token: user.token,
-      expiresAt: 60 * 60 * 24,
+      expiresAt: SESSION_EXPIRY_SECONDS,
     });
     syncService.start();
     return true;
@@ -522,6 +609,44 @@ ipcMain.handle("store:clearUser", (_event) => {
 
 ipcMain.handle("theme:getSystemTheme", () => {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";
+});
+
+ipcMain.handle("queue-print", (_event, job: PrintJob) => {
+  queue.push(job);
+  processQueue();
+});
+
+ipcMain.handle("cancel-print", (_event, jobId: string) => {
+  queue = queue.filter((j) => j.id !== jobId);
+});
+
+ipcMain.handle("reorder-print", (_event, ids: string[]) => {
+  queue = ids.map((id) => queue.find((j) => j.id === id)!).filter(Boolean);
+});
+
+ipcMain.handle("get-printers", async () => {
+  const activeWindow = BrowserWindow.getAllWindows()[0];
+  if (!activeWindow) {
+    log.warn("No active window found for getting printers");
+    return [];
+  }
+  return activeWindow.webContents.getPrintersAsync();
+});
+
+ipcMain.handle("save-printer", (_event, printer: string) => {
+  fs.writeFileSync(
+    path.join(app.getPath("userData"), "printer.json"),
+    JSON.stringify({ printer }),
+  );
+});
+
+ipcMain.handle("load-printer", () => {
+  if (!fs.existsSync(path.join(app.getPath("userData"), "printer.json"))) {
+    return null;
+  }
+  return JSON.parse(
+    fs.readFileSync(path.join(app.getPath("userData"), "printer.json"), "utf8"),
+  ).printer;
 });
 
 process.on("uncaughtException", (error) => {
@@ -565,7 +690,7 @@ app.whenReady().then(() => {
     if (idleTime >= lockTime) {
       handleUserIdle();
     }
-  }, 60 * 1000);
+  }, IDLE_CHECK_INTERVAL_MS);
 });
 
 app.on("before-quit", () => {
@@ -586,7 +711,7 @@ app.on("before-quit", () => {
 });
 
 app.on("will-quit", () => {
-  // closeDB();
+  // Database cleanup handled by dbManager
 });
 
 app.on("window-all-closed", () => {

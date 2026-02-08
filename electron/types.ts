@@ -109,8 +109,19 @@ export interface IElectronAPI {
   onDatabaseChange: (
     cb: (event: { table: string; action: string; data?: any }) => void,
   ) => Unsubscribe;
+
   authLogin: (user: UserDetails & Omit<Auth, "pin">) => Promise<boolean>;
   authLogout: () => Promise<boolean>;
+
+  queuePrint(job: any): Promise<void>;
+  cancelPrint(id: string): Promise<void>;
+  reorderPrint(ids: string[]): Promise<void>;
+  getPrinters(): Promise<Electron.PrinterInfo[]>;
+  savePrinter(printer: string): Promise<void>;
+  loadPrinter(): Promise<string | null>;
+  onPrintProgress(
+    cb: (data: { jobId: string; status: string }) => void,
+  ): Unsubscribe;
 }
 
 export interface UpdateSchema {
@@ -150,3 +161,11 @@ export interface AppStore {
   SUPABASE_KEY: string;
   updateDownloaded: boolean;
 }
+
+export type PrintJob = {
+  id: string;
+  html: string;
+  printer?: string;
+  silent: boolean;
+  name: string;
+};

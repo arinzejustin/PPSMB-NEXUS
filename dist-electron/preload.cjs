@@ -34,7 +34,7 @@ const appBridge = {
     authLogin: (user) => electron_1.ipcRenderer.invoke("auth:login", user),
     authLogout: () => electron_1.ipcRenderer.invoke("auth:logout"),
     // Notification
-    sendNotification: (title, body) => electron_1.ipcRenderer.send("notification", title, body),
+    sendNotification: (title, body) => electron_1.ipcRenderer.invoke("app:notification", title, body),
     // Document scanner
     onScanDocument: (cb) => on("scan-document", cb),
     // Updater
@@ -46,8 +46,8 @@ const appBridge = {
     onUpdateDownloaded: (cb) => on("update-downloaded", cb),
     getUpdateState: () => electron_1.ipcRenderer.invoke("get-update-state"),
     // Window management
-    openModal: (routeUrl, options) => electron_1.ipcRenderer.invoke("open-modal", routeUrl, options),
-    openBrowser: (url) => electron_1.ipcRenderer.invoke("open-browser", url),
+    openModal: (routeUrl, options) => electron_1.ipcRenderer.invoke("app:openModal", routeUrl, options),
+    openBrowser: (url) => electron_1.ipcRenderer.invoke("app:openBrowser", url),
     exitOrRestart: (action) => electron_1.ipcRenderer.invoke("app:exitOrRestart", action),
     navigateHistory: (action) => electron_1.ipcRenderer.invoke("app:navigateHistory", action),
     // Context menu
@@ -64,6 +64,22 @@ const appBridge = {
     onSyncStatusUpdate: (cb) => on("sync-status-update", cb),
     // Database change notifications
     onDatabaseChange: (cb) => on("database-change", cb),
+    //Printer
+    queuePrint: (job) => electron_1.ipcRenderer.invoke("queue-print", job),
+    cancelPrint: (id) => electron_1.ipcRenderer.invoke("cancel-print", id),
+    reorderPrint: (ids) => electron_1.ipcRenderer.invoke("reorder-print", ids),
+    getPrinters: () => electron_1.ipcRenderer.invoke("get-printers"),
+    savePrinter: (printer) => electron_1.ipcRenderer.invoke("save-printer", printer),
+    loadPrinter: () => electron_1.ipcRenderer.invoke("load-printer"),
+    onPrintProgress(cb) {
+        const listener = (_, data) => {
+            cb(data);
+        };
+        electron_1.ipcRenderer.on("print-progress", listener);
+        return () => {
+            electron_1.ipcRenderer.removeListener("print-progress", listener);
+        };
+    },
 };
 try {
     electron_1.contextBridge.exposeInMainWorld("electronAPI", appBridge);

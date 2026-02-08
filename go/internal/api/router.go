@@ -116,7 +116,7 @@ func (r *Router) SetupRoutes() {
 	// HEALTH CHECK - Publicly accessible (no auth, no gateway guard)
 	// Used by load balancers, monitoring tools, and health checks
 	// ============================================================
-	r.app.Get("/health", healthHandler.Check, middleware.AnonymousRateLimiter(r.limiters))
+	r.app.Get("/health", healthHandler.Check)
 
 	// ============================================================
 	// API ROUTES - Full security: Gateway + Auth + Rate Limiting

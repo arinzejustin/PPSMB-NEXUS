@@ -1,4 +1,4 @@
-import type { UserDetails, Auth } from "#shared/types";
+import type { UserDetails, Auth } from "~/utils/types";
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
   const user = useUser();

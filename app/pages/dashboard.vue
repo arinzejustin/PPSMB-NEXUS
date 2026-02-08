@@ -90,6 +90,7 @@ import {
 } from 'chart.js';
 import { format, formatDistanceToNow } from 'date-fns';
 import { setStorage, getStorage, getSession, setSession } from "@/lib/storage"
+import MonthlyPerformanceTimeline from '@/components/app/MonthlyPerformanceTimeline.vue';
 
 ChartJS.register(
   CategoryScale,
@@ -121,7 +122,6 @@ const timeInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const showSyncDetails = ref(false);
 const showQuickActionsDialog = ref(false);
 const showAlertsInline = ref(false);
-const showNotificationPopover = ref(false);
 
 
 const { status: syncStatus, formatLastSynced, statusColor, forceCheck } = useSyncStatus();
@@ -139,7 +139,8 @@ const {
   criticalAlertsCount,
   isLoading,
   refresh,
-  dismissAlert
+  dismissAlert,
+  monthlyPerformanceData
 } = useDashboardData();
 
 const user = computed(() => {
@@ -353,6 +354,11 @@ const donutOptions = {
   cutout: '70%'
 };
 
+
+const handlePerformanceMoreClick = (monthData: any) => {
+  showToast(`Viewing all departments for ${monthData.month}`, 'info');
+};
+
 const iconMap: Record<string, any> = {
   Users,
   Building2,
@@ -441,11 +447,20 @@ const allQuickActions = [
   {
     id: 'send-mail',
     label: 'Send Mail',
-    icon: Send,
+    icon: Mail,
     to: '/mail/compose',
     gradient: 'from-rose-500 to-pink-600',
     description: 'Correspondence',
     shortcut: 'Ctrl+M'
+  },
+  {
+    id: 'broadcast',
+    label: 'Broadcast Messages',
+    icon: Send,
+    to: '/broadcast',
+    gradient: 'dark:from-white/80 dark:to-white/20 from-black/80 to-black/20',
+    description: 'Send messages to all staff',
+    shortcut: 'Ctrl+B'
   },
   {
     id: 'evaluation',
@@ -765,11 +780,13 @@ onUnmounted(() => {
                   <p>No alerts at this time</p>
                 </div>
                 <template v-else>
-                  <div v-for="alert in alerts" :key="alert.id" class="p-3 border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors">
+                  <div v-for="alert in alerts" :key="alert.id"
+                    class="p-3 border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors">
                     <div class="flex items-start gap-3">
                       <div
                         :class="['p-1.5 rounded-lg shrink-0', alert.severity === 'critical' ? 'bg-red-500/10' : alert.severity === 'warning' ? 'bg-amber-500/10' : 'bg-blue-500/10']">
-                        <component :is="getAlertIcon(alert.severity)" :class="['w-4 h-4', getAlertIconColor(alert.severity)]" />
+                        <component :is="getAlertIcon(alert.severity)"
+                          :class="['w-4 h-4', getAlertIconColor(alert.severity)]" />
                       </div>
                       <div class="flex-1 min-w-0">
                         <p class="font-medium text-sm truncate">{{ alert.title }}</p>
@@ -790,7 +807,7 @@ onUnmounted(() => {
                 </template>
               </DropdownMenuContent>
             </DropdownMenu>
-            
+
             <Button variant="outline" size="sm" @click="refreshData" :disabled="isLoading" class="rounded-full">
               <RefreshCw :class="['w-4 h-4 mr-2', isLoading ? 'animate-spin' : '']" />
               Refresh
@@ -1096,6 +1113,10 @@ onUnmounted(() => {
       </Card>
     </div>
 
+    <!-- Monthly Performance Timeline - Full Width -->
+    <MonthlyPerformanceTimeline :data="monthlyPerformanceData" :max-departments="4" :visible-months="3"
+      @more-click="handlePerformanceMoreClick" />
+
     <!-- Zone Distribution and Activity -->
     <div class="grid gap-6 lg:grid-cols-2">
       <!-- Zone Distribution -->
@@ -1254,9 +1275,9 @@ onUnmounted(() => {
     </Card>
 
     <!-- System Health and Upcoming Events -->
-    <div class="grid gap-6 lg:grid-cols-3">
+    <div class="grid gap-6 grid-cols-1 lg:grid-cols-3">
       <!-- System Health -->
-      <Card class="border-0 bg-linear-to-br from-background to-muted/20 shadow-lg">
+      <Card class="border-0 order-2 lg:order-1 bg-linear-to-br from-background to-muted/20 shadow-lg">
         <CardHeader>
           <CardTitle class="flex items-center gap-2">
             <Target class="w-5 h-5 text-emerald-500" />
@@ -1296,15 +1317,15 @@ onUnmounted(() => {
       </Card>
 
       <!-- Upcoming Events -->
-      <Card class="lg:col-span-2 border-0 bg-linear-to-br from-background to-muted/20 shadow-lg">
+      <Card class="lg:col-span-2 order-1 lg:order-2 border-0 bg-linear-to-br from-background to-muted/20 shadow-lg">
         <CardHeader>
           <div class="flex items-center justify-between">
             <div>
-              <CardTitle class="flex items-center gap-2">
+              <CardTitle class="flex items-center gap-2 text-base lg:text-auto">
                 <Calendar class="w-5 h-5 text-primary" />
                 Upcoming Events
               </CardTitle>
-              <CardDescription>Important dates and deadlines</CardDescription>
+              <CardDescription class="mt-1.5">Important dates and deadlines</CardDescription>
             </div>
             <Button variant="outline" size="sm" @click="$router.push('/calendar')">
               <Calendar class="w-4 h-4 mr-2" /> View Calendar
@@ -1338,7 +1359,7 @@ onUnmounted(() => {
 
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold truncate">{{ event.title }}</p>
-                  <div class="flex items-center gap-2 mt-1">
+                  <div class="flex items-center gap-2 mt-2 pt-1">
                     <Badge variant="outline" :class="getPriorityColor(event.priority)" class="text-[10px] capitalize">
                       {{ event.priority }}
                     </Badge>

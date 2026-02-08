@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import jwt, { type SignOptions } from "jsonwebtoken";
-import type { UserDetails } from "#shared/types";
+import type { UserDetails } from "~/utils/types";
 import type { H3Event } from "h3";
 
 /**

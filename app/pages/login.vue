@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input';
 import { ChevronRight, ChevronLeft } from "lucide-vue-next";
-import { openUrl } from "#shared/urlHandler";
+import { openUrl } from "~/utils/urlHandler";
 import { setStorage } from '@/lib/storage';
 import type { LoginAuth, ResponseStatus } from "@/types/index";
 

@@ -55,7 +55,7 @@ const appBridge: IElectronAPI = {
 
   // Notification
   sendNotification: (title, body) =>
-    ipcRenderer.send("notification", title, body),
+    ipcRenderer.invoke("app:notification", title, body),
 
   // Document scanner
   onScanDocument: (cb) => on("scan-document", cb),
@@ -71,8 +71,8 @@ const appBridge: IElectronAPI = {
 
   // Window management
   openModal: (routeUrl, options) =>
-    ipcRenderer.invoke("open-modal", routeUrl, options),
-  openBrowser: (url) => ipcRenderer.invoke("open-browser", url),
+    ipcRenderer.invoke("app:openModal", routeUrl, options),
+  openBrowser: (url) => ipcRenderer.invoke("app:openBrowser", url),
   exitOrRestart: (action: "exit" | "restart") =>
     ipcRenderer.invoke("app:exitOrRestart", action),
   navigateHistory: (action: "back" | "forward") =>
@@ -104,6 +104,25 @@ const appBridge: IElectronAPI = {
   onDatabaseChange: (
     cb: (event: { table: string; action: string; data?: any }) => void,
   ) => on("database-change", cb),
+
+  //Printer
+  queuePrint: (job) => ipcRenderer.invoke("queue-print", job),
+  cancelPrint: (id) => ipcRenderer.invoke("cancel-print", id),
+  reorderPrint: (ids) => ipcRenderer.invoke("reorder-print", ids),
+  getPrinters: () => ipcRenderer.invoke("get-printers"),
+  savePrinter: (printer) => ipcRenderer.invoke("save-printer", printer),
+  loadPrinter: () => ipcRenderer.invoke("load-printer"),
+  onPrintProgress(
+    cb: (data: { status: string; jobId: string }) => void,
+  ): Unsubscribe {
+    const listener = (_: unknown, data: { status: string; jobId: string }) => {
+      cb(data);
+    };
+    ipcRenderer.on("print-progress", listener);
+    return () => {
+      ipcRenderer.removeListener("print-progress", listener);
+    };
+  },
 };
 
 try {

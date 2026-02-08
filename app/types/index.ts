@@ -1,4 +1,4 @@
-import type { UserDetails, Auth } from "#shared/types";
+import type { UserDetails, Auth } from "~/utils/types";
 
 export interface LoginAuth extends Auth, ResponseStatus {
   user: UserDetails;

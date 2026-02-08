@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, ref } from 'vue';
 import { useRoute, navigateTo, useHead, useRuntimeConfig, definePageMeta } from '#imports';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,13 +8,14 @@ import { PinInput, PinInputGroup, PinInputSlot } from '@/components/ui/pin-input
 import { ChevronRight, ClockFading, CircleAlert, LockKeyhole, LogIn } from 'lucide-vue-next';
 import { setStorage, getStorage, deleteStorage } from '@/lib/storage';
 import { useLogOut } from '@/composables/useLogOut';
-import { useUser } from "@/composables/useUserStates"
+import { useUser } from "@/composables/useUserStates";
 
 export default defineComponent({
     setup() {
         const env = useRuntimeConfig();
         const user = useUser()
-        const { lockSession, unLockSession } = useLockWindow()
+        const { lockSession, unLockSession } = useLockWindow();
+        const pinInputRef = ref<any>(null);
 
         definePageMeta({
             layout: 'auth'
@@ -27,7 +28,8 @@ export default defineComponent({
         return {
             user,
             lockSession,
-            unLockSession
+            unLockSession,
+            pinInputRef
         }
     },
 
@@ -96,6 +98,7 @@ export default defineComponent({
             return navigateTo('/login');
         }
 
+        this.focusInput();
         const storedLockout = getStorage<string | null>('pinLockoutEnd');
         if (storedLockout) {
             const lockoutEnd = parseInt(storedLockout, 10);
@@ -150,6 +153,16 @@ export default defineComponent({
             }
         },
 
+        focusInput() {
+            if (this.pinInputRef) {
+                this.$nextTick(() => {
+                    const el = this.pinInputRef?.$el as HTMLElement;
+                    const input = el?.querySelector('input');
+                    input?.focus();
+                });
+            }
+        },
+
         async verifyPin() {
             if (this.isLockedOut) {
                 this.pinError = `Too many attempts. Try again in ${this.formatTime(this.remainingTime)}`;
@@ -188,11 +201,14 @@ export default defineComponent({
                         this.pinError = `Incorrect PIN. ${this.MAX_ATTEMPTS - this.errCount} attempts remaining.`;
                     }
                     this.pinValue = [];
+                    this.isLoading = false;
+                    this.focusInput();
                 }
             } catch (error: any) {
                 this.pinError = error.message || 'Verification failed. Please try again.';
                 this.pinValue = [];
                 this.isLoading = false;
+                this.focusInput();
             }
         },
 
@@ -234,8 +250,8 @@ export default defineComponent({
                     <p class="text-xs text-muted-foreground">Please wait before trying again</p>
                 </div>
                 <template v-else>
-                    <PinInput v-model="pinValue" placeholder="●" type="number" :length="4" :disabled="isLoading"
-                        @complete="handlePinComplete">
+                    <PinInput ref="pinInputRef" v-model="pinValue" placeholder="●" type="number" :length="4"
+                        :disabled="isLoading" @complete="handlePinComplete">
                         <PinInputGroup class="gap-3">
                             <PinInputSlot v-for="(_, index) in 4" :key="index" :index="index"
                                 class="w-14 h-16 text-xl font-semibold border-2 rounded-md bg-background/50 transition-all"

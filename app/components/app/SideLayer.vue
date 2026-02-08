@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { openBrowser } from '#shared/urlHandler';
+import { openBrowser } from '~/utils/urlHandler';
 
 export default defineComponent({
     props: {

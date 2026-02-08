@@ -1,6 +1,6 @@
 import { compareSync } from "@node-rs/bcrypt";
 import { useSupabase } from "@@/server/utils/supabase/client";
-import type { UserDetails, Auth } from "#shared/types";
+import type { UserDetails, Auth } from "~/utils/types";
 import type { LoginAuth } from "@/types/index";
 
 /**

@@ -1,4 +1,4 @@
-import type { UserDetails, Auth } from "#shared/types";
+import type { UserDetails, Auth } from "~/utils/types";
 
 export const useUser = () =>
   useState<(UserDetails & Auth) | null>("user", () => null);

@@ -3,7 +3,7 @@ import { defineComponent } from 'vue';
 import { navigateTo, useRoute, showToast } from '#imports';
 import { useTheme } from '@/composables/useTheme';
 import { useLockWindow } from '@/composables/useLockWindow';
-import { useSyncStatus } from '@/composables/useSyncStatus';
+import { usePrinter } from '@/composables/usePrinter';
 import { useToken, useUser } from "~/composables/useUserStates"
 import { ArrowDownIcon, Code2Icon, UserSearch, CloudSync, FileScan, FilePlusCorner } from 'lucide-vue-next'
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,8 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { getStorage, setStorage } from '@/lib/storage';
-import { openBrowser } from '#shared/urlHandler';
-import type { UserDetails } from '#shared/types'
+import { openBrowser } from '~/utils/urlHandler';
+import type { UserDetails } from '~/utils/types'
 import type { TokenResponse } from '~/types/index';
 import 'vue-sonner/style.css'
 
@@ -37,6 +37,7 @@ export default defineComponent({
     const token = useToken();
     const { theme } = useTheme();
     const { lockSession } = useLockWindow();
+    const { printProgress, loadPrinters, loadSelectedPrinter } = usePrinter();
 
     const refreshToken = async () => {
       try {
@@ -53,7 +54,10 @@ export default defineComponent({
       token,
       refreshToken,
       theme,
-      lockSession
+      lockSession,
+      printProgress,
+      loadPrinters,
+      loadSelectedPrinter
     }
   },
 
@@ -86,6 +90,8 @@ export default defineComponent({
       off: [] as (() => void)[],
       menuOptions: {} as Record<string, boolean | number | string>,
       loading: true,
+      tokenRefreshInterval: null as ReturnType<typeof setInterval> | null,
+      changeRotationInterval: null as ReturnType<typeof setInterval> | null,
     };
   },
 
@@ -153,7 +159,7 @@ export default defineComponent({
       };
 
       updateKeyframe();
-      setInterval(updateKeyframe, 3000);
+      this.changeRotationInterval = setInterval(updateKeyframe, 3000);
     },
 
     tick() {
@@ -271,7 +277,7 @@ export default defineComponent({
     if (!import.meta.client) return;
 
     this.changeRotation();
-    setInterval(() => this.refreshToken(), 30 * 60 * 1000);
+    this.tokenRefreshInterval = setInterval(() => this.refreshToken(), 30 * 60 * 1000);
 
     const isElectron = !!window.electronAPI;
 
@@ -307,6 +313,18 @@ export default defineComponent({
           this.timer = setInterval(this.tick, 1500);
         }),
 
+        window.electronAPI!.onPrintProgress((data) => {
+          const index = this.printProgress.findIndex((item) => item.jobId === data.jobId);
+          if (index !== -1) {
+            const existing = this.printProgress[index];
+            this.printProgress[index] = {
+              status: data.status,
+              jobId: existing!.jobId,
+              name: existing!.name,
+            };
+          }
+        }),
+
         window.electronAPI!.onScanDocument(() => navigateTo('/documents/scan')),
 
         window.electronAPI!.openContextMenu((options) => {
@@ -318,6 +336,13 @@ export default defineComponent({
       const { url, user } = this.resolveElectronAuthRoute();
       if (user) this.user = user;
       navigateTo(url);
+
+      try {
+        await this.loadPrinters();
+        await this.loadSelectedPrinter();
+      } catch (error) {
+        console.log('Failed to load printers:', error);
+      }
     } else {
       this.applyWebTheme();
     }
@@ -329,6 +354,8 @@ export default defineComponent({
   beforeUnmount() {
     this.off.forEach((fn) => fn());
     if (this.timer) clearInterval(this.timer);
+    if (this.tokenRefreshInterval) clearInterval(this.tokenRefreshInterval);
+    if (this.changeRotationInterval) clearInterval(this.changeRotationInterval);
     if (window.electronAPI) {
       window.removeEventListener("keydown", this.handleKeydown);
     }

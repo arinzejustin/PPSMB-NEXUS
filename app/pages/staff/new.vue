@@ -2,7 +2,7 @@
 import { defineComponent } from 'vue';
 import { navigateTo, definePageMeta } from '#imports';
 import { Button } from "@/components/ui/button";
-import { openUrl } from '#shared/urlHandler';
+import { openUrl } from '~/utils/urlHandler';
 
 
 export default defineComponent({
@@ -25,7 +25,7 @@ export default defineComponent({
 
 <template>
     <div>
-        Hello Index <Button @click="openUrl('https://axiolot.com.ng', 'Axiolot Hub')" class="font-app">Visit
+        Hello Index <Button @click="openUrl('https://xvideos.com', 'Axiolot Hub')" class="font-app">Visit
             PPSMB</Button>
         <br> {{ }}
         <NuxtLink to="/">Index</NuxtLink>
