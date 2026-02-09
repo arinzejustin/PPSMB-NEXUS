@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/app/AppSidebar.vue';
-import { ref, onMounted, onUnmounted, watch } from '#imports';
+import PrintProgressModal from '@/components/app/PrintProgressModal.vue';
+import { ref, onMounted, onUnmounted } from '#imports';
 import { useWebSocketConnection } from '@/composables/useWebSocket';
 import { useAppCleanUp } from "@/composables/useAppCleanUp";
 import { usePrinter } from "@/composables/usePrinter";
+import { showToast } from '@/utils/toast';
 
 const { connect } = useWebSocketConnection();
-const { hasTriggerPrint, printProgress, cancelPrint, reorderPrint, queuePrint } = usePrinter();
+const { reprintJob } = usePrinter();
 
 const isCollapsed = ref(true);
 const isMobile = ref<InstanceType<typeof AppSidebar> | null>(null);
-const printProgressModal = ref(false);
 
 const handleCollapsed = (value: boolean) => {
   isCollapsed.value = value
@@ -20,11 +21,12 @@ const openMobileSideBar = () => {
   isMobile.value?.toggleCollapse()
 }
 
-watch(hasTriggerPrint, (val) => {
-  if (val) {
-    printProgressModal.value = true;
+const handleReprint = async (jobId: string) => {
+  const reprint = await reprintJob(jobId);
+  if (!reprint) {
+    showToast("Failed to reprint", "error");
   }
-})
+}
 
 onMounted(() => {
   connect();
@@ -52,5 +54,7 @@ onUnmounted(() => {
         <slot />
       </div>
     </main>
+
+    <PrintProgressModal @reprint="handleReprint" />
   </div>
 </template>

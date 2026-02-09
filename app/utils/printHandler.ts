@@ -23,11 +23,12 @@ export const printHandler = async (
     const name = electronOptions?.name || `Document-${id.split("-")[0]}`;
     const { printProgress, queuePrint } = usePrinter();
     printProgress.value.push({
-      status: "Queued",
+      status: "queued",
       jobId: id,
       name,
       size: electronOptions?.size || "Unknown",
-      date: new Date().toISOString(),
+      queuedAt: new Date().toISOString(),
+      printer: electronOptions?.printer
     });
 
     return await queuePrint({

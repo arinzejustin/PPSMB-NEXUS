@@ -20,13 +20,14 @@ let isAppQuitting = false;
 let idleCheckInterval = null;
 let queue = [];
 let activeJob = null;
+let jobHistory = [];
 // Constants
-const SESSION_EXPIRY_SECONDS = 60 * 60 * 24; // 24 hours
-const IDLE_CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 crashReporter.start({
     productName: "Staff Manager",
     companyName: "PPSMB",
-    submitURL: "https://api.axiolot.com.ng/ppsmb/crash/native",
+    submitURL: "https://api.axiolot.com.ng/api/ppsmb/crash/native",
     uploadToServer: true,
     compress: true,
     ignoreSystemCrashHandler: false,
@@ -41,7 +42,7 @@ async function uploadPendingCrash() {
         return;
     try {
         const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
-        await axios.post("https://ppsmb.com.ng/api/crash/json", data);
+        await axios.post("https://axiolot.com.ng/api/ppsmb/crash/json", data);
         fs.unlinkSync(crashFile);
     }
     catch (error) {
@@ -76,14 +77,27 @@ function handleUserIdle() {
     win.webContents.send("idle");
 }
 async function processQueue() {
-    if (activeJob || queue.length === 0)
+    if (activeJob || !queue.length)
         return;
     activeJob = queue.shift();
-    sendProgress("Printing", activeJob.id);
+    sendProgress("printing", activeJob.id);
     const printerWin = new BrowserWindow({
         show: false,
         webPreferences: { sandbox: true },
     });
+    const cleanup = (status) => {
+        if (activeJob) {
+            jobHistory.unshift({
+                ...activeJob,
+                status,
+                finishedAt: Date.now().toLocaleString(),
+            });
+        }
+        status && sendProgress(status, activeJob.id);
+        printerWin.close();
+        activeJob = null;
+        processQueue();
+    };
     try {
         await printerWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(activeJob.html)}`);
         printerWin.webContents.print({
@@ -93,34 +107,26 @@ async function processQueue() {
         }, async (success) => {
             if (!activeJob) {
                 NotificationService.show("Printing Error", "Failed to print document. Please try again.");
-                printerWin?.close();
-                return;
+                return printerWin.close();
             }
+            if (activeJob.cancelled)
+                return cleanup("cancelled");
             if (!success) {
                 await exportPDF(activeJob.html, activeJob.name);
-                sendProgress("PDF Fallback", activeJob.id);
+                return cleanup("pdf fallback");
             }
-            else {
-                sendProgress("Completed", activeJob.id);
-            }
-            // Cleanup after print callback completes
-            printerWin?.close();
-            activeJob = null;
-            processQueue();
+            cleanup("completed");
         });
     }
-    catch (error) {
+    catch {
         NotificationService.show("Printing Error", "Failed to print document. Please try again.");
-        sendProgress("Failed", activeJob.id);
-        printerWin?.close();
-        activeJob = null;
-        processQueue();
+        cleanup("failed");
     }
 }
 async function exportPDF(html, fileName) {
     const pdfWin = new BrowserWindow({ show: false });
     await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
     const pdf = await pdfWin.webContents.printToPDF({});
     // Ensure PDF directory exists
     const pdfDir = path.join(app.getPath("userData"), "pdfs");
@@ -503,9 +509,30 @@ ipcMain.handle("queue-print", (_event, job) => {
 });
 ipcMain.handle("cancel-print", (_event, jobId) => {
     queue = queue.filter((j) => j.id !== jobId);
+    if (activeJob?.id === jobId) {
+        activeJob.cancelled = true;
+        sendProgress("cancelled", jobId);
+    }
+});
+ipcMain.handle("reprint-job", (_e, jobId) => {
+    const job = jobHistory.find((j) => j.id === jobId);
+    if (!job)
+        return;
+    queue.unshift({
+        ...job,
+        cancelled: false,
+    });
+    processQueue();
+});
+ipcMain.handle("get-print-history", () => {
+    return jobHistory;
 });
 ipcMain.handle("reorder-print", (_event, ids) => {
-    queue = ids.map((id) => queue.find((j) => j.id === id)).filter(Boolean);
+    queue = ids
+        .map((id) => queue.find((j) => j.id === id))
+        .filter((j) => Boolean(j));
+    if (!activeJob)
+        processQueue();
 });
 ipcMain.handle("get-printers", async () => {
     const activeWindow = BrowserWindow.getAllWindows()[0];

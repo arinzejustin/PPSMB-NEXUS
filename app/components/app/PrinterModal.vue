@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Select,
@@ -122,6 +121,10 @@ const handlePrinterChange = async (value: string) => {
     await savePrinter(value);
 };
 
+const calculateSize = () => {
+    return props.printContent ? (props.printContent.length / 1024).toFixed(1) : '0'
+}
+
 const zoomIn = () => {
     if (previewZoom.value < 200) {
         previewZoom.value += 25;
@@ -155,6 +158,7 @@ const handlePrint = async () => {
             name: props.documentTitle,
             silent: printSilent.value,
             printer: currentPrinter.value || undefined,
+            size: `${calculateSize()} KB`
         });
 
         if (result) {
@@ -444,8 +448,7 @@ onMounted(async () => {
                             </div>
                             <div class="flex items-center justify-between p-2 rounded-lg bg-background/50">
                                 <span class="text-muted-foreground">Size</span>
-                                <span
-                                    class="font-medium">{{ printContent ? (printContent.length / 1024).toFixed(1) : 0 }}
+                                <span class="font-medium">{{ calculateSize() }}
                                     KB</span>
                             </div>
                         </div>

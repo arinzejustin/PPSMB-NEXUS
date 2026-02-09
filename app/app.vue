@@ -314,15 +314,24 @@ export default defineComponent({
         }),
 
         window.electronAPI!.onPrintProgress((data) => {
-          const index = this.printProgress.findIndex((item) => item.jobId === data.jobId);
-          if (index !== -1) {
-            const existing = this.printProgress[index];
-            this.printProgress[index] = {
-              status: data.status,
-              jobId: existing!.jobId,
-              name: existing!.name,
-            };
-          }
+          console.log(data)
+          const isJobComplete = !["printing", "queued"].includes(data.status);
+          const finishedAt = isJobComplete ? new Date().toISOString() : undefined;
+
+          const jobIndex = this.printProgress.findIndex(
+            (job) => job.jobId === data.jobId
+          );
+
+          if (jobIndex === -1) return;
+
+          const existingJob = this.printProgress[jobIndex]!;
+
+          this.printProgress[jobIndex] = {
+            ...existingJob,
+            jobId: existingJob.jobId,
+            status: data.status,
+            finishedAt,
+          };
         }),
 
         window.electronAPI!.onScanDocument(() => navigateTo('/documents/scan')),

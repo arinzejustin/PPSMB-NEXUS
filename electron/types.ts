@@ -120,8 +120,10 @@ export interface IElectronAPI {
   savePrinter(printer: string): Promise<void>;
   loadPrinter(): Promise<string | null>;
   onPrintProgress(
-    cb: (data: { jobId: string; status: string }) => void,
+    cb: (data: { jobId: string; status: PrintStatus }) => void,
   ): Unsubscribe;
+  reprintJob(jobId: string): Promise<void>;
+  getPrintHistory(): Promise<StoredPrintJob[]>;
 }
 
 export interface UpdateSchema {
@@ -169,4 +171,18 @@ export type PrintJob = {
   silent: boolean;
   name: string;
   cancelled?: boolean;
+  createdAt: string;
 };
+
+export type PrintStatus =
+  | "completed"
+  | "queued"
+  | "printing"
+  | "pdf fallback"
+  | "cancelled"
+  | "failed";
+
+export interface StoredPrintJob extends PrintJob {
+  status: PrintStatus;
+  finishedAt: string;
+}

@@ -80,6 +80,8 @@ const appBridge = {
             electron_1.ipcRenderer.removeListener("print-progress", listener);
         };
     },
+    reprintJob: (jobId) => electron_1.ipcRenderer.invoke("reprint-job", jobId),
+    getPrintHistory: () => electron_1.ipcRenderer.invoke("get-print-history"),
 };
 try {
     electron_1.contextBridge.exposeInMainWorld("electronAPI", appBridge);

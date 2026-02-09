@@ -1,4 +1,5 @@
-import { ref, watch } from "vue";
+import { ref } from "vue";
+import type { StoredPrintJob } from "~~/electron/types";
 
 /** Print job configuration */
 export type PrintJob = {
@@ -9,14 +10,25 @@ export type PrintJob = {
   name: string;
 };
 
+/** Print job status values */
+export type PrintStatus =
+  | "completed"
+  | "queued"
+  | "printing"
+  | "pdf fallback"
+  | "cancelled"
+  | "failed";
+
 /** Print progress status */
 export type PrintProgress = {
-  status: string;
+  status: PrintStatus;
   jobId: string;
   name?: string;
   size?: string;
-  date?: string;
-  // copies?: number;
+  queuedAt?: string;
+  printer?: string;
+  finishedAt?: string;
+  //copies
 };
 
 const printProgress = ref<PrintProgress[]>([]);
@@ -110,15 +122,34 @@ export const usePrinter = () => {
     }
   };
 
-  watch(
-    () => printProgress.value,
-    async (newVal) => {
-      console.log(newVal);
-    },
-    {
-      immediate: true,
-    },
-  );
+  /**
+   * Re-print a completed job by its ID
+   */
+  const reprintJob = async (jobId: string): Promise<boolean> => {
+    const job = printProgress.value.find((p) => p.jobId === jobId);
+    if (!job) {
+      return false;
+    }
+    job.status = "queued";
+    job.queuedAt = new Date().toISOString();
+    job.finishedAt = undefined;
+    await window.electronAPI!.reprintJob(jobId);
+    return true;
+  };
+
+  /**
+   * Get the print history from the printer
+   */
+  const getPrintHistory = async (): Promise<StoredPrintJob[]> => {
+    return await window.electronAPI!.getPrintHistory();
+  };
+
+  /**
+   * Dismiss the print progress modal
+   */
+  const dismissPrintProgress = () => {
+    hasTriggerPrint.value = false;
+  };
 
   return {
     // State
@@ -135,5 +166,8 @@ export const usePrinter = () => {
     queuePrint,
     cancelPrint,
     reorderPrint,
+    reprintJob,
+    dismissPrintProgress,
+    getPrintHistory,
   };
 };

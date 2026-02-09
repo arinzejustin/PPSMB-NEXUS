@@ -23,7 +23,7 @@ import { ensureExternalFileExists } from "./utils/downloadScanner.js";
 import { dbManager } from "./database/app.db.js";
 import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
-import type { UserDetails, Auth, PrintJob } from "./types.js";
+import type { UserDetails, Auth, PrintJob, StoredPrintJob } from "./types.js";
 
 app.setAppUserModelId("PPSMB Staff Manager");
 
@@ -36,15 +36,16 @@ let isAppQuitting = false;
 let idleCheckInterval: NodeJS.Timeout | null = null;
 let queue: PrintJob[] = [];
 let activeJob: PrintJob | null = null;
+let jobHistory: StoredPrintJob[] = [];
 
 // Constants
-const SESSION_EXPIRY_SECONDS = 60 * 60 * 24; // 24 hours
-const IDLE_CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 
 crashReporter.start({
   productName: "Staff Manager",
   companyName: "PPSMB",
-  submitURL: "https://api.axiolot.com.ng/ppsmb/crash/native",
+  submitURL: "https://api.axiolot.com.ng/api/ppsmb/crash/native",
   uploadToServer: true,
   compress: true,
   ignoreSystemCrashHandler: false,
@@ -65,7 +66,7 @@ async function uploadPendingCrash() {
 
   try {
     const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
-    await axios.post("https://ppsmb.com.ng/api/crash/json", data);
+    await axios.post("https://axiolot.com.ng/api/ppsmb/crash/json", data);
     fs.unlinkSync(crashFile);
   } catch (error) {
     log.warn("Failed to upload pending crash report", error);
@@ -107,13 +108,20 @@ async function processQueue() {
   if (activeJob || !queue.length) return;
 
   activeJob = queue.shift()!;
-  sendProgress("Printing", activeJob.id);
+  sendProgress("printing", activeJob.id);
 
   const printerWin = new BrowserWindow({
     show: false,
     webPreferences: { sandbox: true },
   });
-  const cleanup = (status?: string) => {
+  const cleanup = (status: StoredPrintJob["status"]) => {
+    if (activeJob) {
+      jobHistory.unshift({
+        ...activeJob,
+        status,
+        finishedAt: Date.now().toLocaleString(),
+      });
+    }
     status && sendProgress(status, activeJob!.id);
     printerWin.close();
     activeJob = null;
@@ -138,12 +146,12 @@ async function processQueue() {
           );
           return printerWin.close();
         }
-        if (activeJob.cancelled) return cleanup("Cancelled");
+        if (activeJob.cancelled) return cleanup("cancelled");
         if (!success) {
           await exportPDF(activeJob.html, activeJob.name);
-          return cleanup("PDF Fallback");
+          return cleanup("pdf fallback");
         }
-        cleanup("Completed");
+        cleanup("completed");
       },
     );
   } catch {
@@ -151,7 +159,7 @@ async function processQueue() {
       "Printing Error",
       "Failed to print document. Please try again.",
     );
-    cleanup("Failed");
+    cleanup("failed");
   }
 }
 
@@ -173,7 +181,7 @@ async function exportPDF(html: string, fileName: string) {
   pdfWin.close();
 }
 
-function sendProgress(status: string, jobId: string) {
+function sendProgress(status: StoredPrintJob["status"], jobId: string) {
   BrowserWindow.getAllWindows().forEach((w) =>
     w.webContents.send("print-progress", { status, jobId }),
   );
@@ -617,8 +625,24 @@ ipcMain.handle("cancel-print", (_event, jobId: string) => {
   queue = queue.filter((j) => j.id !== jobId);
   if (activeJob?.id === jobId) {
     activeJob.cancelled = true;
-    sendProgress("Cancelled", jobId);
+    sendProgress("cancelled", jobId);
   }
+});
+
+ipcMain.handle("reprint-job", (_e, jobId: string) => {
+  const job = jobHistory.find((j) => j.id === jobId);
+  if (!job) return;
+
+  queue.unshift({
+    ...job,
+    cancelled: false,
+  });
+
+  processQueue();
+});
+
+ipcMain.handle("get-print-history", () => {
+  return jobHistory;
 });
 
 ipcMain.handle("reorder-print", (_event, ids: string[]) => {

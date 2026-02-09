@@ -1,6 +1,6 @@
 // @ts-ignore
 import { contextBridge, ipcRenderer } from "electron";
-import type { IElectronAPI, Unsubscribe, UserDetails, Auth } from "./types.js";
+import type { IElectronAPI, Unsubscribe, UserDetails, Auth, PrintStatus } from "./types.js";
 
 function on<T = unknown>(
   channel: string,
@@ -113,9 +113,9 @@ const appBridge: IElectronAPI = {
   savePrinter: (printer) => ipcRenderer.invoke("save-printer", printer),
   loadPrinter: () => ipcRenderer.invoke("load-printer"),
   onPrintProgress(
-    cb: (data: { status: string; jobId: string }) => void,
+    cb: (data: { status: PrintStatus; jobId: string }) => void,
   ): Unsubscribe {
-    const listener = (_: unknown, data: { status: string; jobId: string }) => {
+    const listener = (_: unknown, data: { status: PrintStatus; jobId: string }) => {
       cb(data);
     };
     ipcRenderer.on("print-progress", listener);
@@ -123,6 +123,8 @@ const appBridge: IElectronAPI = {
       ipcRenderer.removeListener("print-progress", listener);
     };
   },
+  reprintJob: (jobId) => ipcRenderer.invoke("reprint-job", jobId),
+  getPrintHistory: () => ipcRenderer.invoke("get-print-history"),
 };
 
 try {
