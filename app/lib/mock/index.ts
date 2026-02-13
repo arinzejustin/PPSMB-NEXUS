@@ -40,8 +40,12 @@ export {
   zones,
   qualifications,
   certStatuses,
+  serviceStatuses,
   transferSchools,
+  nigerianBanks,
   type MockTeacher,
+  type BankRecord,
+  type TransferRecord,
 } from "./staffMock";
 
 // Documents mock data

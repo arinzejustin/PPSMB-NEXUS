@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue';
-import { definePageMeta, useHead, showToast } from '#imports';
+import { definePageMeta, useHead, showToast, useRoute, navigateTo } from '#imports';
 import {
   Search,
   Plus,
@@ -81,7 +81,6 @@ import {
 } from '@/components/ui/tooltip';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useInternalMail } from '@/composables/useInternalMail';
-import { usePrinter } from "@/composables/usePrinter";
 import { useIsDesktop } from "@/composables/useIsDesktop"
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
@@ -96,6 +95,7 @@ definePageMeta({
 });
 
 const isElectron = ref<boolean>(useIsDesktop());
+const route = useRoute();
 
 useHead({
   title: isElectron.value ? "PPSMB File Manager" : "Mail & Correspondence"
@@ -114,7 +114,6 @@ const {
   toggleStar: toggleStarAction,
   deleteMessages: deleteMessagesAction,
   archiveHandler: archiveMessagesAction,
-  refresh: refreshMails,
 } = useInternalMail();
 
 const isComposeOpen = ref<boolean>(false);
@@ -223,6 +222,9 @@ const handleSend = async () => {
 
 onMounted(() => {
   fetchMails();
+  if (route.query.compose) {
+    isComposeOpen.value = true;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -459,6 +461,7 @@ const handleComposeClose = (open: boolean) => {
   if (!open) {
     resetComposeMode();
   }
+  navigateTo("/mail/")
 };
 
 // --- Print Logic ---
@@ -622,7 +625,6 @@ const handlePrint = () => {
 
 const handlePrintSuccess = () => {
   printerModal.value = false;
-  showToast('Document printed successfully', 'success');
 };
 
 // --- Label Management Logic ---
@@ -1380,12 +1382,8 @@ const handleDeleteMail = async () => {
     </Dialog>
 
     <!-- Printer Modal with Preview -->
-    <PrinterModal
-      v-model:open="printerModal"
-      :document-title="selectedMail?.subject || 'Document'"
-      :print-content="printContentHtml"
-      @print-success="handlePrintSuccess"
-    />
+    <PrinterModal v-model:open="printerModal" :document-title="selectedMail?.subject || 'Document'"
+      :print-content="printContentHtml" @print-success="handlePrintSuccess" />
   </div>
 </template>
 

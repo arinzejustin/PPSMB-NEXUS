@@ -277,7 +277,7 @@ watch(() => printProgress.value.length, (newLen, oldLen) => {
                                             <TooltipTrigger as-child>
                                                 <Button variant="ghost" size="icon" @click="handleClearCompleted"
                                                     class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground">
-                                                    <Trash2 class="w-3.5 h-3.5" /> {{ canReprintAll }}
+                                                    <Trash2 class="w-3.5 h-3.5" />
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent class="z-10000">Reprint all</TooltipContent>
@@ -314,7 +314,7 @@ watch(() => printProgress.value.length, (newLen, oldLen) => {
                         </div>
 
                         <!-- Jobs List -->
-                        <ScrollArea class="flex-1 max-h-[380px]">
+                        <ScrollArea class="flex-1 h-[380px] overflow-y-auto">
                             <div v-if="printProgress.length === 0"
                                 class="flex flex-col items-center justify-center py-12 text-center px-4">
                                 <div class="p-4 rounded-2xl bg-muted/50 mb-3">

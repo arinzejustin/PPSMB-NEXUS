@@ -19,8 +19,9 @@ interface DepartmentPerformance {
     change: number;
 }
 
-interface MonthlyData {
+export interface MonthlyData {
     month: string;
+    year: string;
     departments: DepartmentPerformance[];
 }
 
@@ -51,6 +52,8 @@ const viewportWidth = ref(0);
 const updateViewport = () => {
     viewportWidth.value = window.innerWidth;
 };
+
+const initialScrollDone = ref(false);
 
 onMounted(() => {
     updateViewport();
@@ -86,6 +89,18 @@ const isAnimating = ref(false);
 
 const maxIndex = computed(() =>
     Math.max(0, props.data.length - effectiveVisibleMonths.value)
+);
+
+// Start at the end (most recent months) once data and viewport are ready
+watch(
+    [maxIndex, effectiveVisibleMonths],
+    ([newMax]) => {
+        if (!initialScrollDone.value && newMax > 0) {
+            currentIndex.value = newMax;
+            initialScrollDone.value = true;
+        }
+    },
+    { immediate: true }
 );
 
 // keep index valid when screen resizes
@@ -214,7 +229,7 @@ const formatChange = (change: number) => {
                                 <button v-if="hasMoreDepartments(monthData.departments)"
                                     class="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors duration-200 group"
                                     @click="handleMoreClick(monthData)">
-                                    <span>More</span>
+                                    <span>View More</span>
                                     <ChevronDown
                                         class="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform duration-200" />
                                 </button>

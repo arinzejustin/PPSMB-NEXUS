@@ -24,7 +24,8 @@ import {
   WifiOff,
   RefreshCw,
   Zap,
-  Send
+  Send,
+  ArrowLeftRight
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -75,6 +76,7 @@ const navItems: NavItem[] = [
     children: [
       { id: 'teachers-all', label: 'All Teachers', icon: Users, to: '/staff/' },
       { id: 'teachers-new', label: 'Add Teacher', icon: UserCog, to: '/staff/new' },
+      { id: 'teachers-transfers', label: 'Transfers', icon: ArrowLeftRight, to: '/staff/transfers' },
       { id: 'teachers-zones', label: 'By Zone', icon: MapPin, to: '/staff/zones' },
       { id: 'teachers-schools', label: 'By School', icon: Building2, to: '/staff/schools' },
     ]

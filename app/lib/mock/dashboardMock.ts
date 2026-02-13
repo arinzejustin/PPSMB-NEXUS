@@ -393,6 +393,7 @@ export const defaultSystemHealth = [
 // Monthly performance data for timeline component
 export interface MonthlyPerformanceEntry {
   month: string;
+  year: string;
   departments: {
     name: string;
     change: number;
@@ -401,7 +402,8 @@ export interface MonthlyPerformanceEntry {
 
 export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
   {
-    month: "July, 2025",
+    month: "July",
+    year: "2025",
     departments: [
       { name: "Works", change: -2 },
       { name: "Marketing", change: 1 },
@@ -411,7 +413,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "August, 2025",
+    month: "August",
+    year: "2025",
     departments: [
       { name: "Works", change: 2 },
       { name: "Marketing", change: -2 },
@@ -421,7 +424,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "September, 2025",
+    month: "September",
+    year: "2025",
     departments: [
       { name: "Works", change: 0 },
       { name: "Marketing", change: 3 },
@@ -431,7 +435,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "October, 2025",
+    month: "October",
+    year: "2025",
     departments: [
       { name: "Works", change: 1 },
       { name: "Marketing", change: -3 },
@@ -441,7 +446,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "November, 2025",
+    month: "November",
+    year: "2025",
     departments: [
       { name: "Works", change: 2 },
       { name: "Marketing", change: 1 },
@@ -451,7 +457,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "December, 2025",
+    month: "December",
+    year: "2025",
     departments: [
       { name: "Works", change: -1 },
       { name: "Marketing", change: 2 },
@@ -461,7 +468,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "January, 2026",
+    month: "January",
+    year: "2026",
     departments: [
       { name: "Works", change: 3 },
       { name: "Marketing", change: -1 },
@@ -471,7 +479,8 @@ export const monthlyPerformanceData: MonthlyPerformanceEntry[] = [
     ],
   },
   {
-    month: "February, 2026",
+    month: "February",
+    year: "2026",
     departments: [
       { name: "Works", change: 5 },
       { name: "Marketing", change: 2 },

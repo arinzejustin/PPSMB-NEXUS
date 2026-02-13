@@ -162,14 +162,11 @@ const handlePrint = async () => {
         });
 
         if (result) {
-            showToast('Document sent to printer', 'success');
             emit('print-success');
             isOpen.value = false;
         }
     } catch (error) {
-        console.error('Print failed:', error);
         showToast('Failed to print document', 'error');
-        emit('print-error', error as Error);
     } finally {
         isPrinting.value = false;
     }

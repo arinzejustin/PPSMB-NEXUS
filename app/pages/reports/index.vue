@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { definePageMeta } from '#imports';
+import { ref, onMounted } from 'vue';
+import { definePageMeta, useRoute } from '#imports';
 import {
   BarChart3,
   FileText,
@@ -15,18 +15,11 @@ import {
   Clock,
   Play,
   Plus,
-  Filter,
-  Settings,
   ChevronRight,
   FileSpreadsheet,
   FileType,
-  PieChart,
-  TrendingUp,
   MapPin,
-  AlertCircle,
-  CheckCircle2,
   Loader2,
-  RefreshCw,
   Star,
   History
 } from 'lucide-vue-next';
@@ -54,16 +47,35 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
+import DepartmentTaskReport from '@/components/app/DepartmentTaskReport.vue';
 
 definePageMeta({
   layout: 'app'
 });
 
+const route = useRoute();
+
 const activeTab = ref('library');
 const showReportBuilder = ref(false);
 const isGenerating = ref(false);
 const selectedReport = ref<any>(null);
+
+// Route query params for cross-page navigation (from dashboard)
+const initialMonth = ref('');
+const initialYear = ref('');
+
+onMounted(() => {
+  if (route.query.tab === 'task-completion') {
+    activeTab.value = 'task-completion';
+  }
+  if (route.query.month && typeof route.query.month === 'string') {
+    initialMonth.value = route.query.month;
+  }
+  if (route.query.year && typeof route.query.year === 'string') {
+    initialYear.value = route.query.year;
+  }
+});
 
 // Pre-built report templates
 const reportTemplates = ref([
@@ -350,20 +362,18 @@ const getFormatIcon = (format: string) => {
       <TabsList>
         <TabsTrigger value="library">Report Library</TabsTrigger>
         <TabsTrigger value="recent">Recent Reports</TabsTrigger>
+        <TabsTrigger value="task-completion">Task Report</TabsTrigger>
       </TabsList>
 
       <!-- Report Library -->
       <TabsContent value="library" class="space-y-6">
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card
-            v-for="report in reportTemplates"
-            :key="report.id"
+          <Card v-for="report in reportTemplates" :key="report.id"
             class="group cursor-pointer hover:shadow-lg transition-all duration-300 overflow-hidden"
-            @click="openReportBuilder(report)"
-          >
+            @click="openReportBuilder(report)">
             <CardHeader class="pb-3">
               <div class="flex items-start justify-between">
-                <div :class="['p-3 rounded-xl bg-gradient-to-br text-white', report.color]">
+                <div :class="['p-3 rounded-xl bg-linear-to-br text-white', report.color]">
                   <component :is="report.icon" class="w-6 h-6" />
                 </div>
                 <Badge variant="outline">{{ report.frequency }}</Badge>
@@ -404,11 +414,8 @@ const getFormatIcon = (format: string) => {
           </CardHeader>
           <CardContent>
             <div class="divide-y">
-              <div
-                v-for="report in recentReports"
-                :key="report.id"
-                class="flex items-center gap-4 py-4 hover:bg-muted/50 -mx-6 px-6 transition-colors"
-              >
+              <div v-for="report in recentReports" :key="report.id"
+                class="flex items-center gap-4 py-4 hover:bg-muted/50 -mx-6 px-6 transition-colors">
                 <div class="p-2 rounded-lg bg-primary/10">
                   <component :is="getFormatIcon(report.format)" class="w-5 h-5 text-primary" />
                 </div>
@@ -439,6 +446,11 @@ const getFormatIcon = (format: string) => {
             </div>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <!-- Department Task Completion Report -->
+      <TabsContent value="task-completion" class="space-y-6">
+        <DepartmentTaskReport :initial-month="initialMonth" :initial-year="initialYear" />
       </TabsContent>
     </Tabs>
 
@@ -486,17 +498,12 @@ const getFormatIcon = (format: string) => {
           <div>
             <Label>Zones (Select multiple)</Label>
             <div class="grid grid-cols-3 gap-2 mt-2">
-              <div
-                v-for="zone in zones"
-                :key="zone"
-                @click="toggleZone(zone)"
-                :class="[
-                  'flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors',
-                  builderState.zones.includes(zone) 
-                    ? 'bg-primary/10 border-primary' 
-                    : 'hover:bg-muted'
-                ]"
-              >
+              <div v-for="zone in zones" :key="zone" @click="toggleZone(zone)" :class="[
+                'flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors',
+                builderState.zones.includes(zone)
+                  ? 'bg-primary/10 border-primary'
+                  : 'hover:bg-muted'
+              ]">
                 <Checkbox :checked="builderState.zones.includes(zone)" />
                 <span class="text-sm">{{ zone }}</span>
               </div>
@@ -508,17 +515,12 @@ const getFormatIcon = (format: string) => {
             <Label>Include Fields</Label>
             <ScrollArea class="h-48 mt-2 border rounded-lg p-3">
               <div class="space-y-2">
-                <div
-                  v-for="field in availableFields"
-                  :key="field"
-                  @click="toggleField(field)"
-                  :class="[
-                    'flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors',
-                    builderState.fields.includes(field) 
-                      ? 'bg-primary/10' 
-                      : 'hover:bg-muted'
-                  ]"
-                >
+                <div v-for="field in availableFields" :key="field" @click="toggleField(field)" :class="[
+                  'flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors',
+                  builderState.fields.includes(field)
+                    ? 'bg-primary/10'
+                    : 'hover:bg-muted'
+                ]">
                   <Checkbox :checked="builderState.fields.includes(field)" />
                   <span class="text-sm">{{ field }}</span>
                 </div>
@@ -531,19 +533,13 @@ const getFormatIcon = (format: string) => {
             <Label>Options</Label>
             <div class="flex items-center gap-4">
               <div class="flex items-center gap-2">
-                <Checkbox 
-                  id="charts" 
-                  :checked="builderState.includeCharts"
-                  @update:checked="builderState.includeCharts = $event"
-                />
+                <Checkbox id="charts" :checked="builderState.includeCharts"
+                  @update:checked="builderState.includeCharts = $event" />
                 <label for="charts" class="text-sm cursor-pointer">Include Charts</label>
               </div>
               <div class="flex items-center gap-2">
-                <Checkbox 
-                  id="summary" 
-                  :checked="builderState.includeSummary"
-                  @update:checked="builderState.includeSummary = $event"
-                />
+                <Checkbox id="summary" :checked="builderState.includeSummary"
+                  @update:checked="builderState.includeSummary = $event" />
                 <label for="summary" class="text-sm cursor-pointer">Include Summary</label>
               </div>
             </div>
@@ -553,19 +549,13 @@ const getFormatIcon = (format: string) => {
           <div>
             <Label>Output Format</Label>
             <div class="flex items-center gap-3 mt-2">
-              <Button
-                :variant="builderState.format === 'pdf' ? 'default' : 'outline'"
-                size="sm"
-                @click="builderState.format = 'pdf'"
-              >
+              <Button :variant="builderState.format === 'pdf' ? 'default' : 'outline'" size="sm"
+                @click="builderState.format = 'pdf'">
                 <FileType class="w-4 h-4 mr-2" />
                 PDF
               </Button>
-              <Button
-                :variant="builderState.format === 'excel' ? 'default' : 'outline'"
-                size="sm"
-                @click="builderState.format = 'excel'"
-              >
+              <Button :variant="builderState.format === 'excel' ? 'default' : 'outline'" size="sm"
+                @click="builderState.format = 'excel'">
                 <FileSpreadsheet class="w-4 h-4 mr-2" />
                 Excel
               </Button>

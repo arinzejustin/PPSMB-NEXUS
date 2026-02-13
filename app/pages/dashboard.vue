@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue';
-import { definePageMeta, useHead, useRuntimeConfig, showToast } from '#imports';
+import { definePageMeta, useHead, useRuntimeConfig, showToast, navigateTo } from '#imports';
 import { useUser } from '~/composables/useUserStates';
 import { useSyncStatus } from '@/composables/useSyncStatus';
 import { useDashboardData } from '@/composables/useDashboardData';
@@ -90,7 +90,7 @@ import {
 } from 'chart.js';
 import { format, formatDistanceToNow } from 'date-fns';
 import { setStorage, getStorage, getSession, setSession } from "@/lib/storage"
-import MonthlyPerformanceTimeline from '@/components/app/MonthlyPerformanceTimeline.vue';
+import MonthlyPerformanceTimeline, { type MonthlyData } from '@/components/app/MonthlyPerformanceTimeline.vue';
 
 ChartJS.register(
   CategoryScale,
@@ -355,8 +355,15 @@ const donutOptions = {
 };
 
 
-const handlePerformanceMoreClick = (monthData: any) => {
-  showToast(`Viewing all departments for ${monthData.month}`, 'info');
+const handlePerformanceMoreClick = (monthData: MonthlyData) => {
+  navigateTo({
+    path: '/reports',
+    query: {
+      tab: 'task-completion',
+      month: monthData.month,
+      year: monthData.year
+    }
+  });
 };
 
 const iconMap: Record<string, any> = {
@@ -448,7 +455,7 @@ const allQuickActions = [
     id: 'send-mail',
     label: 'Send Mail',
     icon: Mail,
-    to: '/mail/compose',
+    to: '/mail/?compose=true',
     gradient: 'from-rose-500 to-pink-600',
     description: 'Correspondence',
     shortcut: 'Ctrl+M'

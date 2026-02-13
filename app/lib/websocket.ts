@@ -74,6 +74,7 @@ export class WebSocketClient {
    */
   public connect(): void {
     if (typeof window === "undefined") return;
+    console.log(this.wsInstance, this._status.value)
     if (this.wsInstance && this._status.value === "OPEN") return;
 
     this._status.value = "CONNECTING";

@@ -10,7 +10,7 @@
 
 // Database configuration
 const INDEXED_DB_NAME = "ppsmb_app_db";
-const INDEXED_DB_VERSION = 3; // Incremented to add broadcast stores
+const INDEXED_DB_VERSION = 4; // Incremented to add task reports store
 
 // Store names for IndexedDB
 export const STORES = {
@@ -23,6 +23,7 @@ export const STORES = {
   BROADCAST_HISTORY: "broadcast_history",
   BROADCAST_TEMPLATES: "broadcast_templates",
   INTERNAL_MAIL_DRAFTS: "internal_mail_drafts",
+  TASK_REPORTS: "task_reports",
 } as const;
 
 type StoreName = (typeof STORES)[keyof typeof STORES] | string;

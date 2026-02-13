@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { navigateTo, definePageMeta, useHead, computed, useRuntimeConfig } from '#imports';
+import { navigateTo, definePageMeta, useHead } from '#imports';
 
-const env = useRuntimeConfig();
-const isDesktop = computed(() => env.public.appType === 'desktop');
 
 useHead({
-    title: isDesktop.value ? 'PPSMB Staff Manager' : 'Loading Components...'
+    title: 'Loading Components...'
 });
 
 definePageMeta({
