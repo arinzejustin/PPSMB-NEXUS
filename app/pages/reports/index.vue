@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { definePageMeta, useRoute } from '#imports';
+import { definePageMeta, useRoute, useHead } from '#imports';
 import {
   BarChart3,
   FileText,
@@ -49,12 +49,19 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import DepartmentTaskReport from '@/components/app/DepartmentTaskReport.vue';
-
-definePageMeta({
-  layout: 'app'
-});
+import { useIsDesktop } from '@/composables/useIsDesktop';
 
 const route = useRoute();
+const isDesktop = useIsDesktop();
+
+definePageMeta({
+  layout: 'app',
+  middleware: "user-validate"
+});
+useHead({
+  title: isDesktop ? 'PPSMB File Manager' : 'Reports - PPSMB File Manager'
+})
+
 
 const activeTab = ref('library');
 const showReportBuilder = ref(false);
@@ -450,7 +457,7 @@ const getFormatIcon = (format: string) => {
 
       <!-- Department Task Completion Report -->
       <TabsContent value="task-completion" class="space-y-6">
-        <DepartmentTaskReport :initial-month="initialMonth" :initial-year="initialYear" />
+        <DepartmentTaskReport :initial-month="initialMonth" :initial-year="initialYear" :is-desktop="isDesktop" />
       </TabsContent>
     </Tabs>
 

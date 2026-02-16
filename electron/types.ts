@@ -164,9 +164,13 @@ export interface AppStore {
   updateDownloaded: boolean;
 }
 
+export type PrintContentType = "html" | "csv" | "excel";
+
 export type PrintJob = {
   id: string;
   html: string;
+  contentType?: PrintContentType;
+  rawContent?: string;
   printer?: string;
   silent: boolean;
   name: string;

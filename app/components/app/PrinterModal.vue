@@ -43,21 +43,35 @@ import {
     Loader2,
     AlertCircle,
     Monitor,
+    FileSpreadsheet,
+    FileType,
 } from 'lucide-vue-next';
 import { usePrinter } from '@/composables/usePrinter';
-import { printHandler } from '@/utils/printHandler';
+import { printHandler, type PrintOptions } from '@/utils/printHandler';
 import { showToast } from '@/utils/toast';
+import {
+    generatePreviewHTML,
+    detectContentType,
+    type PrintContentType
+} from '@/utils/contentConverter';
 
 interface Props {
     open: boolean;
     documentTitle?: string;
+    /** HTML string content (backward compatible) */
     printContent?: string;
+    /** Raw content — can be string (HTML/CSV) or ArrayBuffer (Excel) */
+    rawContent?: string | ArrayBuffer;
+    /** Explicit content type. Auto-detected from documentTitle if omitted */
+    contentType?: PrintContentType;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     open: false,
     documentTitle: 'Document',
     printContent: '',
+    rawContent: undefined,
+    contentType: undefined,
 });
 
 const emit = defineEmits<{
@@ -83,6 +97,37 @@ const previewZoom = ref(100);
 const isFullPreview = ref(false);
 const localSelectedPrinter = ref<string | null>(null);
 const previewIframeRef = ref<HTMLIFrameElement | null>(null);
+
+// Resolved content type
+const resolvedContentType = computed<PrintContentType>(() => {
+    if (props.contentType) return props.contentType;
+    return detectContentType(props.documentTitle);
+});
+
+// The actual content to use (prefer rawContent, fall back to printContent)
+const effectiveContent = computed<string | ArrayBuffer | undefined>(() => {
+    if (props.rawContent !== undefined) return props.rawContent;
+    if (props.printContent) return props.printContent;
+    return undefined;
+});
+
+// Content type label for display
+const contentTypeLabel = computed(() => {
+    switch (resolvedContentType.value) {
+        case 'csv': return 'CSV';
+        case 'excel': return 'Excel';
+        default: return 'HTML';
+    }
+});
+
+// Content type icon
+const contentTypeIcon = computed(() => {
+    switch (resolvedContentType.value) {
+        case 'csv': return FileText;
+        case 'excel': return FileSpreadsheet;
+        default: return FileType;
+    }
+});
 
 // Computed values
 const isOpen = computed({
@@ -122,8 +167,15 @@ const handlePrinterChange = async (value: string) => {
 };
 
 const calculateSize = () => {
-    return props.printContent ? (props.printContent.length / 1024).toFixed(1) : '0'
-}
+    const content = effectiveContent.value;
+    if (!content) return '0';
+
+    if (typeof content !== 'string') {
+        const buf = content as ArrayBuffer;
+        return (buf.byteLength / 1024).toFixed(1);
+    }
+    return (content.length / 1024).toFixed(1);
+};
 
 const zoomIn = () => {
     if (previewZoom.value < 200) {
@@ -146,7 +198,8 @@ const toggleFullPreview = () => {
 };
 
 const handlePrint = async () => {
-    if (!props.printContent) {
+    const content = effectiveContent.value;
+    if (!content) {
         showToast('No content to print', 'error');
         return;
     }
@@ -154,12 +207,15 @@ const handlePrint = async () => {
     isPrinting.value = true;
 
     try {
-        const result = await printHandler(props.printContent, {
+        const options: PrintOptions = {
             name: props.documentTitle,
             silent: printSilent.value,
             printer: currentPrinter.value || undefined,
-            size: `${calculateSize()} KB`
-        });
+            size: `${calculateSize()} KB`,
+            contentType: resolvedContentType.value,
+        };
+
+        const result = await printHandler(content, options);
 
         if (result) {
             emit('print-success');
@@ -178,15 +234,39 @@ const handleClose = () => {
     previewZoom.value = 100;
 };
 
-// Update preview iframe content
+// Update preview iframe content — now handles all content types
 const updatePreviewContent = async () => {
     await nextTick();
-    if (previewIframeRef.value && props.printContent) {
-        const iframeDoc = previewIframeRef.value.contentDocument || previewIframeRef.value.contentWindow?.document;
-        if (iframeDoc) {
-            iframeDoc.open();
-            iframeDoc.write(props.printContent);
-            iframeDoc.close();
+    const content = effectiveContent.value;
+
+    if (previewIframeRef.value && content) {
+        try {
+            const previewHTML = generatePreviewHTML(
+                content,
+                resolvedContentType.value,
+                props.documentTitle,
+            );
+
+            const iframeDoc = previewIframeRef.value.contentDocument
+                || previewIframeRef.value.contentWindow?.document;
+            if (iframeDoc) {
+                iframeDoc.open();
+                iframeDoc.write(previewHTML);
+                iframeDoc.close();
+            }
+        } catch (err) {
+            console.error('Failed to generate preview:', err);
+            const iframeDoc = previewIframeRef.value.contentDocument
+                || previewIframeRef.value.contentWindow?.document;
+            if (iframeDoc) {
+                iframeDoc.open();
+                iframeDoc.write(`
+                    <div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#94a3b8;">
+                        <p>Unable to preview this file type</p>
+                    </div>
+                `);
+                iframeDoc.close();
+            }
         }
     }
 };
@@ -199,7 +279,7 @@ watch(() => props.open, async (newVal) => {
     }
 });
 
-watch(() => props.printContent, async () => {
+watch([() => props.printContent, () => props.rawContent, () => props.contentType], async () => {
     if (props.open) {
         await updatePreviewContent();
     }
@@ -240,8 +320,12 @@ onMounted(async () => {
                         </div>
                         <div>
                             <DialogTitle class="text-lg font-semibold">Print Document</DialogTitle>
-                            <DialogDescription class="text-sm">
+                            <DialogDescription class="text-sm flex items-center gap-2">
                                 {{ documentTitle }}
+                                <Badge variant="outline" class="text-xs ml-1">
+                                    <component :is="contentTypeIcon" class="w-3 h-3 mr-1" />
+                                    {{ contentTypeLabel }}
+                                </Badge>
                             </DialogDescription>
                         </div>
                     </div>
@@ -340,7 +424,7 @@ onMounted(async () => {
                         </ScrollArea>
 
                         <!-- No Content Overlay -->
-                        <div v-if="!printContent"
+                        <div v-if="!effectiveContent"
                             class="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 backdrop-blur-sm">
                             <div class="p-4 rounded-2xl bg-muted/50 mb-4">
                                 <FileText class="w-12 h-12 text-muted-foreground" />
@@ -444,6 +528,13 @@ onMounted(async () => {
                                 <span class="font-medium truncate max-w-[150px]">{{ documentTitle }}</span>
                             </div>
                             <div class="flex items-center justify-between p-2 rounded-lg bg-background/50">
+                                <span class="text-muted-foreground">Type</span>
+                                <Badge variant="secondary" class="text-xs">
+                                    <component :is="contentTypeIcon" class="w-3 h-3 mr-1" />
+                                    {{ contentTypeLabel }}
+                                </Badge>
+                            </div>
+                            <div class="flex items-center justify-between p-2 rounded-lg bg-background/50">
                                 <span class="text-muted-foreground">Size</span>
                                 <span class="font-medium">{{ calculateSize() }}
                                     KB</span>
@@ -465,7 +556,7 @@ onMounted(async () => {
                     <Button variant="ghost" @click="handleClose" class="rounded-xl">
                         Cancel
                     </Button>
-                    <Button @click="handlePrint" :disabled="isPrinting || !printContent"
+                    <Button @click="handlePrint" :disabled="isPrinting || !effectiveContent"
                         class="rounded-xl px-6 bg-linear-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 shadow-lg shadow-primary/25">
                         <Loader2 v-if="isPrinting" class="w-4 h-4 mr-2 animate-spin" />
                         <Printer v-else class="w-4 h-4 mr-2" />

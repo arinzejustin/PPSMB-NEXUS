@@ -1,10 +1,12 @@
 import { ref } from "vue";
-import type { StoredPrintJob } from "~~/electron/types";
+import type { StoredPrintJob, PrintContentType } from "~~/electron/types";
 
 /** Print job configuration */
 export type PrintJob = {
   id: string;
   html: string;
+  contentType?: PrintContentType;
+  rawContent?: string;
   printer?: string;
   silent?: boolean;
   name: string;
@@ -82,7 +84,7 @@ export const usePrinter = () => {
    */
   const queuePrint = async (job: PrintJob): Promise<boolean> => {
     try {
-      const printJob: Required<PrintJob> = {
+      const printJob: PrintJob = {
         printer: selectedPrinter.value ?? "",
         silent: printSilent.value,
         ...job,

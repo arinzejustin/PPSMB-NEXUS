@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { sharedToast } from '#imports';
 import {
     Building2,
     Search,
@@ -20,7 +21,8 @@ import {
     CalendarDays,
     Pencil,
     Save,
-    XCircle
+    XCircle,
+    Printer
 } from 'lucide-vue-next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,6 +58,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import PrinterModal from '@/components/app/PrinterModal.vue';
 import {
     useTaskReportData,
     computeDepartmentMetrics,
@@ -70,9 +73,11 @@ import {
 const props = withDefaults(defineProps<{
     initialMonth?: string;
     initialYear?: string;
+    isDesktop?: boolean;
 }>(), {
     initialMonth: '',
-    initialYear: ''
+    initialYear: '',
+    isDesktop: false
 });
 
 const emit = defineEmits<{
@@ -133,7 +138,6 @@ const {
     loadPeriod,
     upsertDepartment,
     deleteDepartment,
-    cleanup
 } = useTaskReportData();
 
 /* =======================
@@ -146,6 +150,9 @@ const searchQuery = ref('');
 const statusFilter = ref<string>('All');
 const isExporting = ref(false);
 const exportScope = ref<'month' | 'year'>('month');
+const showPrinterModal = ref(false);
+const printExcelBuffer = ref<ArrayBuffer | null>(null);
+const printDocTitle = ref('');
 
 // Editing state
 const editingId = ref<string | null>(null);
@@ -156,11 +163,6 @@ const editValues = ref({ totalAssigned: 0, totalCompleted: 0 });
 ======================= */
 onMounted(() => {
     loadPeriod(selectedMonth.value, selectedYear.value);
-    console.log(props.initialMonth + "1~~", "is empty"+props.initialYear + "2~", selectedMonth.value + "3~~`", selectedYear.value + "4~~~~")
-});
-
-onUnmounted(() => {
-    cleanup();
 });
 
 // Watch for prop changes (from dashboard navigation)
@@ -457,6 +459,89 @@ const exportToExcel = async () => {
 };
 
 /* =======================
+   Print Report (as Excel)
+======================= */
+const printReport = async () => {
+    if (filteredData.value.length === 0) return;
+
+    try {
+        const XLSX = await import('xlsx');
+        const wb = XLSX.utils.book_new();
+
+        if (exportScope.value === 'year') {
+            // Summary sheet
+            const summaryRows = [
+                { 'Metric': 'Report Year', 'Value': selectedYear.value },
+                { 'Metric': 'Active Month', 'Value': selectedMonth.value },
+                { 'Metric': 'Total Departments', 'Value': totalDepartments.value.toString() },
+                { 'Metric': 'Average Completion', 'Value': `${averageCompletion.value}%` },
+                { 'Metric': 'Overall Status', 'Value': overallStatus.value },
+                { 'Metric': 'Excellent', 'Value': statusBreakdown.value.Excellent.toString() },
+                { 'Metric': 'Fair', 'Value': statusBreakdown.value.Fair.toString() },
+                { 'Metric': 'Good', 'Value': statusBreakdown.value.Good.toString() },
+                { 'Metric': 'Failure', 'Value': statusBreakdown.value.Failure.toString() },
+            ];
+            const summaryWs = XLSX.utils.json_to_sheet(summaryRows);
+            summaryWs['!cols'] = [{ wch: 22 }, { wch: 20 }];
+            XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+            for (const month of MONTHS) {
+                const key = `${selectedYear.value}_${month}`;
+                const monthData = dataByPeriod.value.get(key) || [];
+                if (monthData.length === 0) continue;
+
+                const rows = monthData.map((d, i) => ({
+                    'S/N': i + 1,
+                    'Department Name': d.departmentName,
+                    'Total Tasks Assigned': d.totalAssigned,
+                    'Total Tasks Completed': d.totalCompleted,
+                    'Completion (%)': d.completionPercentage,
+                    'Performance Status': d.performanceStatus,
+                    'Remark': d.remark
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(rows);
+                ws['!cols'] = [
+                    { wch: 5 }, { wch: 28 }, { wch: 20 }, { wch: 22 },
+                    { wch: 16 }, { wch: 20 }, { wch: 50 },
+                ];
+                XLSX.utils.book_append_sheet(wb, ws, month.substring(0, 10));
+            }
+
+            printDocTitle.value = `Department_Task_Report_${selectedYear.value}_Full_Year.xlsx`;
+        } else {
+            const exportRows = filteredData.value.map((d, i) => ({
+                'S/N': i + 1,
+                'Department Name': d.departmentName,
+                'Total Tasks Assigned': d.totalAssigned,
+                'Total Tasks Completed': d.totalCompleted,
+                'Completion (%)': d.completionPercentage,
+                'Performance Status': d.performanceStatus,
+                'Remark': d.remark
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            ws['!cols'] = [
+                { wch: 5 }, { wch: 28 }, { wch: 20 }, { wch: 22 },
+                { wch: 16 }, { wch: 20 }, { wch: 50 },
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, 'Department Report');
+            printDocTitle.value = `Department_Task_Report_${selectedMonth.value}_${selectedYear.value}.xlsx`;
+        }
+
+        // Write workbook to ArrayBuffer for the Excel print pipeline
+        const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        printExcelBuffer.value = wbOut as ArrayBuffer;
+        showPrinterModal.value = true;
+    } catch (err) {
+        sharedToast({
+            message: 'Failed to prepare print data',
+            type: 'error',
+        });
+    }
+};
+
+/* =======================
    Helpers
 ======================= */
 const getPercentageBarWidth = (pct: number) => `${Math.min(100, pct)}%`;
@@ -555,6 +640,24 @@ const getPercentageBarColor = (status: DepartmentTaskData['performanceStatus']) 
                             <p v-else>
                                 Download Department_Task_Report_{{ selectedYear }}_Full_Year.xlsx
                             </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider v-if="isDesktop">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <Button size="sm"
+                                class="h-9 gap-2 bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white border-0 shadow-md shadow-indigo-500/20"
+                                @click="printReport" :disabled="filteredData.length === 0">
+                                <Printer class="w-4 h-4" />
+                                <span class="hidden sm:inline">Print</span>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p v-if="exportScope === 'month'">Print report for {{ selectedMonth }} {{ selectedYear }}
+                            </p>
+                            <p v-else>Print full year report for {{ selectedYear }}</p>
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
@@ -1020,5 +1123,8 @@ const getPercentageBarColor = (status: DepartmentTaskData['performanceStatus']) 
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+        <PrinterModal v-model:open="showPrinterModal" :document-title="printDocTitle"
+            :raw-content="printExcelBuffer ?? undefined" content-type="excel"
+            @print-success="showPrinterModal = false" />
     </div>
 </template>
