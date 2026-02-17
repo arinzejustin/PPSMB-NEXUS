@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, crashReporter, powerMonitor, nativeTheme, } from "electron";
+import { fork } from "child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import os from "node:os";
+import net from "node:net";
 import axios from "axios";
 import { NotificationService } from "./utils/notification.js";
 import { setupAutoUpdater } from "./utils/updater.js";
@@ -16,11 +18,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 let win = null;
 let tray = null;
+let nitroProcess = null;
 let isAppQuitting = false;
 let idleCheckInterval = null;
 let queue = [];
 let activeJob = null;
 let jobHistory = [];
+let nitroError = false;
+let nitroPort = 0;
 // Constants
 const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
 const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
@@ -36,6 +41,64 @@ crashReporter.start({
         platform: process.platform,
     },
 });
+function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const srv = net.createServer();
+        srv.listen(0, () => {
+            const addr = srv.address();
+            if (addr && typeof addr === "object") {
+                const port = addr.port;
+                srv.close(() => resolve(port));
+            }
+            else {
+                srv.close(() => reject(new Error("Could not get free port")));
+            }
+        });
+        srv.on("error", reject);
+    });
+}
+function waitForServer(port, timeout = 10000) {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+        const check = () => {
+            const req = net.createConnection({ port, host: "127.0.0.1" }, () => {
+                req.destroy();
+                resolve();
+            });
+            req.on("error", () => {
+                if (Date.now() - start > timeout) {
+                    reject(new Error(`Nitro server didn't start within ${timeout}ms`));
+                }
+                else {
+                    setTimeout(check, 200);
+                }
+            });
+        };
+        check();
+    });
+}
+async function startNitro() {
+    const port = await getFreePort();
+    let serverPath = path.join(__dirname, "../.output/server/index.mjs");
+    if (app.isPackaged) {
+        serverPath = serverPath.replace("app.asar", "app.asar.unpacked");
+    }
+    nitroProcess = fork(serverPath, {
+        env: {
+            ...process.env,
+            PORT: String(port),
+            NODE_ENV: "production",
+        },
+    });
+    nitroProcess.on("error", (err) => {
+        nitroError = true;
+        console.error("Failed to start Nitro server:", err);
+    });
+    await waitForServer(port);
+    nitroPort = port;
+    log.info(`Nitro server started on port ${port}`);
+    return port;
+}
 async function uploadPendingCrash() {
     const crashFile = path.join(app.getPath("userData"), "ppsmb-crash", "crash-pending.json");
     if (!fs.existsSync(crashFile))
@@ -168,14 +231,25 @@ async function createWindow() {
         win.loadURL("http://localhost:3000");
     }
     else {
-        win.loadFile(path.join(__dirname, "../.output/public/index.html"));
+        try {
+            await startNitro();
+            await win.loadFile(path.join(__dirname, "../.output/public/index.html"));
+        }
+        catch (err) {
+            log.error("Nitro failed", err);
+            throw new Error("Failed to start Nitro server");
+        }
     }
     win.once("ready-to-show", () => {
         if (!win)
             return;
-        win.maximize();
+        if (process.platform === "win32" || process.platform === "linux") {
+            win.maximize();
+        }
         win.show();
-        win.focus();
+    });
+    win.webContents.once("did-finish-load", () => {
+        win.webContents.executeJavaScript(`window.__appVersion = "${app.getVersion()}"`);
     });
     win.on("close", (event) => {
         if (!isAppQuitting) {
@@ -436,6 +510,9 @@ ipcMain.handle("db:sync", async (_event) => {
 ipcMain.handle("app:openBrowser", (_event, url) => {
     shell.openExternal(url);
 });
+ipcMain.handle("app:getNitroPort", () => {
+    return nitroPort;
+});
 ipcMain.handle("app:notification", (_event, title, body) => {
     NotificationService.show(title, body);
 });
@@ -598,6 +675,11 @@ app.on("before-quit", () => {
     if (tray) {
         tray.destroy();
         tray = null;
+    }
+    // Clean up Nitro server
+    if (nitroProcess) {
+        nitroProcess.kill();
+        nitroProcess = null;
     }
 });
 app.on("will-quit", () => {

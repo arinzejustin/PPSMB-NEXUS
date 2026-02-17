@@ -48,6 +48,7 @@ const appBridge = {
     // Window management
     openModal: (routeUrl, options) => electron_1.ipcRenderer.invoke("app:openModal", routeUrl, options),
     openBrowser: (url) => electron_1.ipcRenderer.invoke("app:openBrowser", url),
+    getNitroPort: () => electron_1.ipcRenderer.invoke("app:getNitroPort"),
     exitOrRestart: (action) => electron_1.ipcRenderer.invoke("app:exitOrRestart", action),
     navigateHistory: (action) => electron_1.ipcRenderer.invoke("app:navigateHistory", action),
     // Context menu

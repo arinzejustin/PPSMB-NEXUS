@@ -1,6 +1,12 @@
 // @ts-ignore
 import { contextBridge, ipcRenderer } from "electron";
-import type { IElectronAPI, Unsubscribe, UserDetails, Auth, PrintStatus } from "./types.js";
+import type {
+  IElectronAPI,
+  Unsubscribe,
+  UserDetails,
+  Auth,
+  PrintStatus,
+} from "./types.js";
 
 function on<T = unknown>(
   channel: string,
@@ -73,6 +79,7 @@ const appBridge: IElectronAPI = {
   openModal: (routeUrl, options) =>
     ipcRenderer.invoke("app:openModal", routeUrl, options),
   openBrowser: (url) => ipcRenderer.invoke("app:openBrowser", url),
+  getNitroPort: () => ipcRenderer.invoke("app:getNitroPort"),
   exitOrRestart: (action: "exit" | "restart") =>
     ipcRenderer.invoke("app:exitOrRestart", action),
   navigateHistory: (action: "back" | "forward") =>
@@ -115,7 +122,10 @@ const appBridge: IElectronAPI = {
   onPrintProgress(
     cb: (data: { status: PrintStatus; jobId: string }) => void,
   ): Unsubscribe {
-    const listener = (_: unknown, data: { status: PrintStatus; jobId: string }) => {
+    const listener = (
+      _: unknown,
+      data: { status: PrintStatus; jobId: string },
+    ) => {
       cb(data);
     };
     ipcRenderer.on("print-progress", listener);

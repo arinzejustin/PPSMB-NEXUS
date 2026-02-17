@@ -61,6 +61,7 @@ const pinValue = ref<number[]>([]);
 const confirmPinValue = ref<number[]>([]);
 const changeError = ref('');
 const isPinLoading = ref(false);
+const __appVersion = ref('0.0.0')
 
 const settings = reactive({
     autoSave: true,
@@ -291,6 +292,7 @@ onMounted(() => {
     const page = route.query.active as string;
     if (page)
         activeSection.value = page;
+    __appVersion.value = window.__appVersion || "Web Version";
 });
 
 watch(() => settings.autoSave, (val) => updateSetting('autoSave', val));
@@ -316,7 +318,7 @@ watch(() => settings.autoUpdate, (val) => updateSetting('autoUpdate', val));
                         </p>
                     </div>
                     <Badge variant="outline" class="hidden md:flex">
-                        v2.4.1
+                        {{ __appVersion }}
                     </Badge>
                 </div>
             </div>

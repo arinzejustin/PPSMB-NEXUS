@@ -81,6 +81,7 @@ export interface IElectronAPI {
   ) => Promise<void>;
 
   openBrowser: (url: string) => Promise<void>;
+  getNitroPort: () => Promise<number>;
 
   openContextMenu: (
     cb: (options: Record<string, boolean | number | string>) => void,

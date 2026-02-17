@@ -79,7 +79,11 @@
     "files": [
       "dist-electron/**/*",
       ".output/public/**/*",
+      ".output/server/**/*",
       "public/**/*"
+    ],
+    "asarUnpack": [
+      ".output/server/**"
     ],
     "publish": [
       {

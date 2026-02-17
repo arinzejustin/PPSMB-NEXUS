@@ -1,13 +1,15 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 const isDesktop = process.env.NUXT_PUBLIC_APP_TYPE === "desktop";
-
-console.log(isDesktop);
+const connect_src =
+  import.meta.dev || isDesktop
+    ? "http://localhost:* ws://localhost:* https://api.ppsmb.com.ng wss://socket.ppsmb.com.ng"
+    : "https://api.ppsmb.com.ng wss://socket.ppsmb.com.ng";
 
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
-  ssr: false,
+  ssr: !isDesktop,
   app: {
     head: {
       title: "PPSMB Staff Manager",
@@ -19,8 +21,7 @@ export default defineNuxtConfig({
         isDesktop
           ? {
               "http-equiv": "Content-Security-Policy",
-              content:
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:*; frame-src 'self';",
+              content: `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' ${connect_src}; frame-src 'self';`,
             }
           : {},
       ],
@@ -51,6 +52,9 @@ export default defineNuxtConfig({
     domainCookie: "",
     supabaseUrl: "",
     supabaseKey: "",
+    goApiBase: import.meta.dev
+      ? "http://localhost:8000/internal/v1"
+      : "https://api.ppsmb.com.ng/internal/v1",
     public: {
       appType: "",
       apiUrl: "",

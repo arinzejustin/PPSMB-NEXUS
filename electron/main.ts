@@ -11,10 +11,12 @@ import {
   nativeTheme,
   type BrowserWindowConstructorOptions,
 } from "electron";
+import { fork, ChildProcess } from "child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import os from "node:os";
+import net from "node:net";
 import axios from "axios";
 import { NotificationService } from "./utils/notification.js";
 import { setupAutoUpdater } from "./utils/updater.js";
@@ -32,11 +34,14 @@ const __dirname = path.dirname(__filename);
 
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let isAppQuitting = false;
+let nitroProcess: ChildProcess | null = null;
+let isAppQuitting: boolean = false;
 let idleCheckInterval: NodeJS.Timeout | null = null;
 let queue: PrintJob[] = [];
 let activeJob: PrintJob | null = null;
 let jobHistory: StoredPrintJob[] = [];
+let nitroError: boolean = false;
+let nitroPort: number = 0;
 
 // Constants
 const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
@@ -54,6 +59,69 @@ crashReporter.start({
     platform: process.platform,
   },
 });
+
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, () => {
+      const addr = srv.address();
+      if (addr && typeof addr === "object") {
+        const port = addr.port;
+        srv.close(() => resolve(port));
+      } else {
+        srv.close(() => reject(new Error("Could not get free port")));
+      }
+    });
+    srv.on("error", reject);
+  });
+}
+
+function waitForServer(port: number, timeout = 10000): Promise<void> {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      const req = net.createConnection({ port, host: "127.0.0.1" }, () => {
+        req.destroy();
+        resolve();
+      });
+      req.on("error", () => {
+        if (Date.now() - start > timeout) {
+          reject(new Error(`Nitro server didn't start within ${timeout}ms`));
+        } else {
+          setTimeout(check, 200);
+        }
+      });
+    };
+    check();
+  });
+}
+
+async function startNitro(): Promise<number> {
+  const port = await getFreePort();
+  let serverPath = path.join(__dirname, "../.output/server/index.mjs");
+
+  if (app.isPackaged) {
+    serverPath = serverPath.replace("app.asar", "app.asar.unpacked");
+  }
+
+  nitroProcess = fork(serverPath, {
+    env: {
+      ...process.env,
+      PORT: String(port),
+      NODE_ENV: "production",
+    },
+  });
+
+  nitroProcess.on("error", (err) => {
+    nitroError = true;
+    console.error("Failed to start Nitro server:", err);
+  });
+
+  await waitForServer(port);
+  nitroPort = port;
+  log.info(`Nitro server started on port ${port}`);
+  return port;
+}
 
 async function uploadPendingCrash() {
   const crashFile = path.join(
@@ -218,14 +286,27 @@ async function createWindow() {
   if (isDev) {
     win.loadURL("http://localhost:3000");
   } else {
-    win.loadFile(path.join(__dirname, "../.output/public/index.html"));
+    try {
+      await startNitro();
+      await win.loadFile(path.join(__dirname, "../.output/public/index.html"));
+    } catch (err) {
+      log.error("Nitro failed", err);
+      throw new Error("Failed to start Nitro server");
+    }
   }
 
   win.once("ready-to-show", () => {
     if (!win) return;
-    win.maximize();
+    if (process.platform === "win32" || process.platform === "linux") {
+      win.maximize();
+    }
     win.show();
-    win.focus();
+  });
+
+  win.webContents.once("did-finish-load", () => {
+    win!.webContents.executeJavaScript(
+      `window.__appVersion = "${app.getVersion()}"`,
+    );
   });
 
   win.on("close", (event) => {
@@ -536,6 +617,10 @@ ipcMain.handle("app:openBrowser", (_event, url: string) => {
   shell.openExternal(url);
 });
 
+ipcMain.handle("app:getNitroPort", () => {
+  return nitroPort;
+});
+
 ipcMain.handle("app:notification", (_event, title: string, body: string) => {
   NotificationService.show(title, body);
 });
@@ -735,6 +820,12 @@ app.on("before-quit", () => {
   if (tray) {
     tray.destroy();
     tray = null;
+  }
+
+  // Clean up Nitro server
+  if (nitroProcess) {
+    nitroProcess.kill();
+    nitroProcess = null;
   }
 });
 
