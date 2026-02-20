@@ -227,8 +227,8 @@ onMounted(() => {
           </div>
         </div>
         <div v-if="!isCollapsed" class="flex flex-col overflow-hidden">
-          <span class="text-sm font-bold text-sidebar-foreground truncate tracking-wide">PPSMB</span>
-          <span class="text-xs text-sidebar-foreground/60 truncate">Staff Management System</span>
+          <span class="text-sm font-bold text-sidebar-foreground truncate tracking-wide">PPSMB ENUGU</span>
+          <span class="text-xs text-sidebar-foreground/60 truncate">Education Management & Communication System</span>
         </div>
       </div>
 

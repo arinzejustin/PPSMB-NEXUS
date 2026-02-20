@@ -1,14 +1,13 @@
 {
-  "name": "ppsmb-file-manager",
-  "productName": "PPSMB File Manager",
+  "name": "ppsmb-enugu-nexus",
+  "productName": "PPSMB Enugu Nexus",
   "type": "module",
   "private": true,
   "version": "0.11.9",
-  "description": "PPSMB File Manager",
-  "author": "Arinze Justin <codewitharinzejustin@gmail.com>",
+  "description": "Education Management & Communication System",
+  "author": "Axiolot Hub <support@axiolot.com.ng>",
   "main": "dist-electron/main.js",
   "scripts": {
-    "postinstall": "electron-builder install-app-deps",
     "dev:nuxt": "nuxt dev",
     "build:nuxt": "nuxt build",
     "generate:nuxt": "nuxt generate",
@@ -18,11 +17,11 @@
     "build:go": "cd go && go build -o server.exe",
     "build:electron": "tsc -p electron/tsconfig.electron.json",
     "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",
-    "postinstall:electron": "electron-rebuild -f -w better-sqlite3",
+    "postinstall:electron": "npx electron-rebuild install-app-deps",
     "dev:electron": "wait-on http://localhost:3000 && nodemon",
     "app:dev": "concurrently -n \"NUXT,TSC,ELECTRON,GO\" -c \"green,blue,yellow,red\" \"npm run dev:nuxt\" \"npm run watch:electron\" \"npm run dev:electron\" \"npm run dev:go\"",
     "app:build": "npm run build:nuxt && npm run build:electron && electron-builder && npm run build:go",
-    "app:postinstall": "concurrently -n \"NUXT,ELECTRON\" -c \"green,blue\" \"npm run postinstall:nuxt\" \"npm run postinstall:electron\""
+    "postinstall": "concurrently -n \"NUXT,ELECTRON\" -c \"green,blue\" \"npm run postinstall:nuxt\" \"npm run postinstall:electron\""
   },
   "dependencies": {
     "@node-rs/bcrypt": "^1.10.7",
@@ -71,8 +70,8 @@
     "wait-on": "^9.0.3"
   },
   "build": {
-    "appId": "com.arinzejustin.teachers-management-system",
-    "productName": "Teachers Management System",
+    "appId": "ng.com.axiolot.nexus.ppsmb-enugu",
+    "productName": "PPSMB Enugu Nexus",
     "npmRebuild": false,
     "directories": {
       "output": "dist"
@@ -90,7 +89,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://api.axiolot.com.ng/ppsmb/updates",
+        "url": "https://api.axiolot.com.ng/ppsmb-enugu/updates",
         "channel": "latest"
       }
     ],
@@ -107,7 +106,7 @@
       "extraFiles": [
         {
           "from": "build/visualElementsManifest.xml",
-          "to": "Teachers Management System.VisualElementsManifest.xml"
+          "to": "ppsmb-enugu-nexus.VisualElementsManifest.xml"
         }
       ]
     },
@@ -119,7 +118,10 @@
       "createStartMenuShortcut": true,
       "installerIcon": "public/favicon.ico",
       "uninstallerIcon": "public/favicon.ico",
-      "deleteAppDataOnUninstall": true
+      "deleteAppDataOnUninstall": true,
+      "perMachine": true,
+      "unicode": true,
+      "menuCategory": "PPSMB/Systems"
     }
   }
 }

@@ -99,6 +99,10 @@ class StoreHelper {
   set<K extends keyof AppStore>(key: K, value: AppStore[K]): void;
   set(key: string, value: any): void;
   set(key: string, value: any): void {
+    if (value === undefined) {
+      this.store.delete(key as any);
+      return;
+    }
     this.store.set(key as any, value);
   }
 

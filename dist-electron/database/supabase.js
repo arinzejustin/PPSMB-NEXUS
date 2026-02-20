@@ -3,8 +3,10 @@ import { storeHelper } from "../store/store.js";
 // Get credentials from store
 const SUPABASE_URL = storeHelper.get("SUPABASE_URL") || process.env.NUXT_SUPABASE_URL;
 const SUPABASE_KEY = storeHelper.get("SUPABASE_KEY") || process.env.NUXT_SUPABASE_KEY;
-storeHelper.set("SUPABASE_URL", SUPABASE_URL);
-storeHelper.set("SUPABASE_KEY", SUPABASE_KEY);
+if (SUPABASE_URL)
+    storeHelper.set("SUPABASE_URL", SUPABASE_URL);
+if (SUPABASE_KEY)
+    storeHelper.set("SUPABASE_KEY", SUPABASE_KEY);
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_KEY) {
     supabase = createClient(SUPABASE_URL, SUPABASE_KEY);

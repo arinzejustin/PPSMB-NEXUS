@@ -13,8 +13,7 @@ import { ensureExternalFileExists } from "./utils/downloadScanner.js";
 import { dbManager } from "./database/app.db.js";
 import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
-app.setAppUserModelId("PPSMB Staff Manager");
-// Single instance lock - prevents multiple instances running in background
+app.setAppUserModelId("PPSMB Enugu Nexus");
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
     app.quit();
@@ -44,9 +43,9 @@ let nitroPort = 0;
 const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
 const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 crashReporter.start({
-    productName: "Staff Manager",
-    companyName: "PPSMB",
-    submitURL: "https://api.axiolot.com.ng/api/ppsmb/crash/native",
+    productName: "PPSMB Enugu Nexus",
+    companyName: "Axiolot Hub",
+    submitURL: "https://api.axiolot.com.ng/ppsmb-enugu/crash/native",
     uploadToServer: true,
     compress: true,
     ignoreSystemCrashHandler: false,
@@ -105,7 +104,7 @@ async function startNitro() {
             NITRO_HOST: "127.0.0.1",
             NODE_ENV: "production",
         },
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
     nitroProcess.stdout?.on("data", (data) => {
         log.info(`[Nitro]: ${data.toString()}`);
@@ -124,7 +123,7 @@ async function uploadPendingCrash() {
         return;
     try {
         const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
-        await axios.post("https://axiolot.com.ng/api/ppsmb/crash/json", data);
+        await axios.post("https://api.axiolot.com.ng/ppsmb-enugu/crash/report", data);
         fs.unlinkSync(crashFile);
     }
     catch (error) {
@@ -245,8 +244,6 @@ async function createWindow() {
     win.setMenuBarVisibility(false);
     setupAutoUpdater(win);
     syncService.start();
-    // Register ready-to-show BEFORE loading URL to prevent the event from firing
-    // before the listener is attached (which caused the window to never show)
     win.once("ready-to-show", () => {
         if (!win)
             return;
@@ -284,13 +281,13 @@ async function createWindow() {
         }
         catch (err) {
             log.error("Nitro failed to start", err);
-            // Show error page instead of crashing silently
             await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
           <html>
             <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#008435;color:#fff;flex-direction:column">
               <h1>Failed to Start</h1>
               <p>The application server could not be started. Please try restarting the app.</p>
               <p style="font-size:12px;opacity:0.7">${err instanceof Error ? err.message : String(err)}</p>
+              <button style="background:#fff;color:#008435;border:1px solid #008435;padding:10px 20px;cursor:pointer" onclick="window.open('https://axiolot.com.ng/contact?subject=PPSMB Enugu Nexus Error&body=${encodeURIComponent(String(err))}')">Contact The Support Team</button>
             </body>
           </html>
         `)}`);
@@ -317,7 +314,7 @@ async function createWindow() {
             version: true,
             __version: app.getVersion(),
             check: true,
-            release: `https://axiolot.com.ng/ppsmb-file-manager?release=${app.getVersion()}`,
+            release: `https://axiolot.com.ng/ppsmb-enugu-nexus?release=${app.getVersion()}`,
             copyVersion: true,
             restart: true,
         };
@@ -380,7 +377,7 @@ function setupTray() {
             },
         },
     ]);
-    tray.setToolTip("PPSMB Staff Manager");
+    tray.setToolTip("PPSMB Enugu Nexus");
     tray.setContextMenu(contextMenu);
     tray.on("click", () => {
         if (win?.isVisible()) {
@@ -726,9 +723,6 @@ app.on("before-quit", () => {
         nitroProcess.kill();
         nitroProcess = null;
     }
-});
-app.on("will-quit", () => {
-    // Database cleanup handled by dbManager
 });
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {

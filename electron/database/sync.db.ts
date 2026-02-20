@@ -32,13 +32,13 @@ class SyncService {
    */
   private async checkConnection(): Promise<boolean> {
     try {
-      await axios.head("https://ppsmb.com.ng/health", {
+      await axios.head("https://api.axiolot.com.ng/health", {
         timeout: 5000,
       });
       return true;
     } catch {
       try {
-        await axios.head("https://ppsmb.com.ng", { timeout: 5000 });
+        await axios.head("https://api.axiolot.com.ng", { timeout: 5000 });
         return true;
       } catch {
         return false;
@@ -50,7 +50,7 @@ class SyncService {
    * Count pending (unsynced) records across all tables
    */
   private async countPendingChanges(): Promise<number> {
-    const tablesToSync = ["scanned_records", "staff_logs"];
+    const tablesToSync = ["scanned_records", "staff_logs", "staff"]; // TODO: Add more tables
     let total = 0;
 
     for (const table of tablesToSync) {

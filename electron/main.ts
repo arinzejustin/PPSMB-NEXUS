@@ -27,9 +27,8 @@ import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
 import type { UserDetails, Auth, PrintJob, StoredPrintJob } from "./types.js";
 
-app.setAppUserModelId("PPSMB Staff Manager");
+app.setAppUserModelId("PPSMB Enugu Nexus");
 
-// Single instance lock - prevents multiple instances running in background
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -62,9 +61,9 @@ const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
 const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 
 crashReporter.start({
-  productName: "Staff Manager",
-  companyName: "PPSMB",
-  submitURL: "https://axiolot.com.ng/api/ppsmb/crash/native",
+  productName: "PPSMB Enugu Nexus",
+  companyName: "Axiolot Hub",
+  submitURL: "https://api.axiolot.com.ng/ppsmb-enugu/crash/native",
   uploadToServer: true,
   compress: true,
   ignoreSystemCrashHandler: false,
@@ -94,7 +93,7 @@ function waitForServer(port: number, timeout = 10000): Promise<void> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const check = () => {
-      const req = net.createConnection({ port, host: "127.0.0.1" }, () => {
+      const req = net.createConnection({ port, host: "localhost" }, () => {
         req.destroy();
         resolve();
       });
@@ -123,10 +122,10 @@ async function startNitro(): Promise<number> {
       ...process.env,
       PORT: String(port),
       NITRO_PORT: String(port),
-      NITRO_HOST: "127.0.0.1",
+      NITRO_HOST: "localhost",
       NODE_ENV: "production",
     },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
 
   nitroProcess.stdout?.on("data", (data) => {
@@ -154,7 +153,10 @@ async function uploadPendingCrash() {
 
   try {
     const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
-    await axios.post("https://axiolot.com.ng/api/ppsmb/crash/report", data);
+    await axios.post(
+      "https://api.axiolot.com.ng/ppsmb-enugu/crash/report",
+      data,
+    );
     fs.unlinkSync(crashFile);
   } catch (error) {
     log.warn("Failed to upload pending crash report", error);
@@ -301,8 +303,6 @@ async function createWindow() {
   setupAutoUpdater(win);
   syncService.start();
 
-  // Register ready-to-show BEFORE loading URL to prevent the event from firing
-  // before the listener is attached (which caused the window to never show)
   win.once("ready-to-show", () => {
     if (!win) return;
     if (process.platform === "win32" || process.platform === "linux") {
@@ -341,10 +341,9 @@ async function createWindow() {
   } else {
     try {
       const port = await startNitro();
-      await win.loadURL(`http://127.0.0.1:${port}`);
+      await win.loadURL(`http://localhost:${port}`);
     } catch (err) {
       log.error("Nitro failed to start", err);
-      // Show error page instead of crashing silently
       await win.loadURL(
         `data:text/html;charset=utf-8,${encodeURIComponent(`
           <html>
@@ -352,6 +351,7 @@ async function createWindow() {
               <h1>Failed to Start</h1>
               <p>The application server could not be started. Please try restarting the app.</p>
               <p style="font-size:12px;opacity:0.7">${err instanceof Error ? err.message : String(err)}</p>
+              <button style="background:#fff;color:#008435;border:1px solid #008435;padding:10px 20px;cursor:pointer" onclick="window.open('https://axiolot.com.ng/contact?subject=PPSMB Enugu Nexus Error&body=${encodeURIComponent(String(err))}')">Contact The Support Team</button>
             </body>
           </html>
         `)}`,
@@ -381,7 +381,7 @@ async function createWindow() {
       version: true,
       __version: app.getVersion(),
       check: true,
-      release: `https://axiolot.com.ng/ppsmb-file-manager?release=${app.getVersion()}`,
+      release: `https://axiolot.com.ng/ppsmb-enugu-nexus?release=${app.getVersion()}`,
       copyVersion: true,
       restart: true,
     };
@@ -457,7 +457,7 @@ function setupTray() {
     },
   ]);
 
-  tray.setToolTip("PPSMB Staff Manager");
+  tray.setToolTip("PPSMB Enugu Nexus");
   tray.setContextMenu(contextMenu);
 
   tray.on("click", () => {
@@ -877,10 +877,6 @@ app.on("before-quit", () => {
     nitroProcess.kill();
     nitroProcess = null;
   }
-});
-
-app.on("will-quit", () => {
-  // Database cleanup handled by dbManager
 });
 
 app.on("window-all-closed", () => {
