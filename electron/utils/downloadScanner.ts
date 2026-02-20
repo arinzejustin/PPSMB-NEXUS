@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { pipeline } from "stream/promises";
 import type { FileVersionInfo } from "../types";
 
-const VERSION_URL = "https://axiolot.com.ng/files/scanner-version.json";
+const VERSION_URL = "https://axiolot.com.ng/api/ppsmb/scanner/version";
 const SCANNER_NAME = "scanner.exe";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;

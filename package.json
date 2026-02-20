@@ -73,6 +73,7 @@
   "build": {
     "appId": "com.arinzejustin.teachers-management-system",
     "productName": "Teachers Management System",
+    "npmRebuild": false,
     "directories": {
       "output": "dist"
     },
@@ -83,13 +84,14 @@
       "public/**/*"
     ],
     "asarUnpack": [
-      ".output/server/**"
+      ".output/server/**",
+      ".output/public/**"
     ],
     "publish": [
       {
-        "provider": "github",
-        "owner": "arinzejustin",
-        "repo": "teachers-management-system"
+        "provider": "generic",
+        "url": "https://api.axiolot.com.ng/ppsmb/updates",
+        "channel": "latest"
       }
     ],
     "win": {
@@ -101,7 +103,13 @@
           ]
         }
       ],
-      "icon": "public/favicon.ico"
+      "icon": "public/favicon.ico",
+      "extraFiles": [
+        {
+          "from": "build/visualElementsManifest.xml",
+          "to": "Teachers Management System.VisualElementsManifest.xml"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,

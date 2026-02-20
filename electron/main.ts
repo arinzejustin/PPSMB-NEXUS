@@ -29,6 +29,21 @@ import type { UserDetails, Auth, PrintJob, StoredPrintJob } from "./types.js";
 
 app.setAppUserModelId("PPSMB Staff Manager");
 
+// Single instance lock - prevents multiple instances running in background
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -40,7 +55,6 @@ let idleCheckInterval: NodeJS.Timeout | null = null;
 let queue: PrintJob[] = [];
 let activeJob: PrintJob | null = null;
 let jobHistory: StoredPrintJob[] = [];
-let nitroError: boolean = false;
 let nitroPort: number = 0;
 
 // Constants
@@ -50,7 +64,7 @@ const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 crashReporter.start({
   productName: "Staff Manager",
   companyName: "PPSMB",
-  submitURL: "https://api.axiolot.com.ng/api/ppsmb/crash/native",
+  submitURL: "https://axiolot.com.ng/api/ppsmb/crash/native",
   uploadToServer: true,
   compress: true,
   ignoreSystemCrashHandler: false,
@@ -108,13 +122,19 @@ async function startNitro(): Promise<number> {
     env: {
       ...process.env,
       PORT: String(port),
+      NITRO_PORT: String(port),
+      NITRO_HOST: "127.0.0.1",
       NODE_ENV: "production",
     },
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
-  nitroProcess.on("error", (err) => {
-    nitroError = true;
-    console.error("Failed to start Nitro server:", err);
+  nitroProcess.stdout?.on("data", (data) => {
+    log.info(`[Nitro]: ${data.toString()}`);
+  });
+
+  nitroProcess.stderr?.on("data", (data) => {
+    log.error(`[Nitro Error]: ${data.toString()}`);
   });
 
   await waitForServer(port);
@@ -134,7 +154,7 @@ async function uploadPendingCrash() {
 
   try {
     const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
-    await axios.post("https://axiolot.com.ng/api/ppsmb/crash/json", data);
+    await axios.post("https://axiolot.com.ng/api/ppsmb/crash/report", data);
     fs.unlinkSync(crashFile);
   } catch (error) {
     log.warn("Failed to upload pending crash report", error);
@@ -281,26 +301,15 @@ async function createWindow() {
   setupAutoUpdater(win);
   syncService.start();
 
-  const isDev = !app.isPackaged;
-
-  if (isDev) {
-    win.loadURL("http://localhost:3000");
-  } else {
-    try {
-      await startNitro();
-      await win.loadFile(path.join(__dirname, "../.output/public/index.html"));
-    } catch (err) {
-      log.error("Nitro failed", err);
-      throw new Error("Failed to start Nitro server");
-    }
-  }
-
+  // Register ready-to-show BEFORE loading URL to prevent the event from firing
+  // before the listener is attached (which caused the window to never show)
   win.once("ready-to-show", () => {
     if (!win) return;
     if (process.platform === "win32" || process.platform === "linux") {
       win.maximize();
     }
     win.show();
+    win.focus();
   });
 
   win.webContents.once("did-finish-load", () => {
@@ -308,6 +317,47 @@ async function createWindow() {
       `window.__appVersion = "${app.getVersion()}"`,
     );
   });
+
+  // Fallback: force show window after 30s if ready-to-show never fires
+  const showTimeout = setTimeout(() => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      log.warn("ready-to-show did not fire within 30s, force-showing window");
+      if (process.platform === "win32" || process.platform === "linux") {
+        win.maximize();
+      }
+      win.show();
+      win.focus();
+    }
+  }, 30000);
+
+  win.once("ready-to-show", () => {
+    clearTimeout(showTimeout);
+  });
+
+  const isDev = !app.isPackaged;
+
+  if (isDev) {
+    win.loadURL("http://localhost:3000");
+  } else {
+    try {
+      const port = await startNitro();
+      await win.loadURL(`http://127.0.0.1:${port}`);
+    } catch (err) {
+      log.error("Nitro failed to start", err);
+      // Show error page instead of crashing silently
+      await win.loadURL(
+        `data:text/html;charset=utf-8,${encodeURIComponent(`
+          <html>
+            <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#008435;color:#fff;flex-direction:column">
+              <h1>Failed to Start</h1>
+              <p>The application server could not be started. Please try restarting the app.</p>
+              <p style="font-size:12px;opacity:0.7">${err instanceof Error ? err.message : String(err)}</p>
+            </body>
+          </html>
+        `)}`,
+      );
+    }
+  }
 
   win.on("close", (event) => {
     if (!isAppQuitting) {
