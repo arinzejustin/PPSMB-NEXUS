@@ -11,7 +11,7 @@ import {
   nativeTheme,
   type BrowserWindowConstructorOptions,
 } from "electron";
-import { fork, ChildProcess } from "child_process";
+import { fork, type ChildProcess } from "child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
@@ -26,6 +26,36 @@ import { dbManager } from "./database/app.db.js";
 import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
 import type { UserDetails, Auth, PrintJob, StoredPrintJob } from "./types.js";
+
+// ─── Constants & Paths ───────────────────────────────────────────────────────
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
+const WINDOW_SHOW_TIMEOUT_MS = 30_000;
+const PDF_RENDER_DELAY_MS = 10_000;
+const PRINTER_CONFIG_PATH = () =>
+  path.join(app.getPath("userData"), "printer.json");
+const CRASH_DIR = () => path.join(app.getPath("userData"), "ppsmb-crash");
+const PDF_DIR = () => path.join(app.getPath("userData"), "pdfs");
+const ICON_PATH = () => path.join(__dirname, "../public/favicon.ico");
+const PRELOAD_PATH = () => path.join(__dirname, "preload.cjs");
+
+// ─── App State ───────────────────────────────────────────────────────────────
+
+let win: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let nitroProcess: ChildProcess | null = null;
+let isAppQuitting = false;
+let idleCheckInterval: NodeJS.Timeout | null = null;
+let queue: PrintJob[] = [];
+let activeJob: PrintJob | null = null;
+let jobHistory: StoredPrintJob[] = [];
+let nitroPort = 0;
+
+// ─── Single Instance Lock ────────────────────────────────────────────────────
 
 app.setAppUserModelId("PPSMB Enugu Nexus");
 
@@ -43,22 +73,7 @@ if (!gotTheLock) {
   });
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-let win: BrowserWindow | null = null;
-let tray: Tray | null = null;
-let nitroProcess: ChildProcess | null = null;
-let isAppQuitting: boolean = false;
-let idleCheckInterval: NodeJS.Timeout | null = null;
-let queue: PrintJob[] = [];
-let activeJob: PrintJob | null = null;
-let jobHistory: StoredPrintJob[] = [];
-let nitroPort: number = 0;
-
-// Constants
-const SESSION_EXPIRY_SECONDS = 60 * 60 * 24;
-const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
+// ─── Crash Reporting ─────────────────────────────────────────────────────────
 
 crashReporter.start({
   productName: "PPSMB Enugu Nexus",
@@ -73,14 +88,59 @@ crashReporter.start({
   },
 });
 
+function sendCrashReport(error: Error, origin: string) {
+  try {
+    const crashDir = CRASH_DIR();
+    if (!fs.existsSync(crashDir)) {
+      fs.mkdirSync(crashDir, { recursive: true });
+    }
+
+    fs.writeFileSync(
+      path.join(crashDir, "crash-pending.json"),
+      JSON.stringify(
+        {
+          origin,
+          message: error.message,
+          stack: error.stack,
+          version: app.getVersion(),
+          platform: process.platform,
+          time: new Date().toISOString(),
+          release: os.release(),
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (err) {
+    log.error("Failed to save crash report", err);
+  }
+}
+
+async function uploadPendingCrash() {
+  const crashFile = path.join(CRASH_DIR(), "crash-pending.json");
+  if (!fs.existsSync(crashFile)) return;
+
+  try {
+    const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
+    await axios.post(
+      "https://api.axiolot.com.ng/ppsmb-enugu/crash/report",
+      data,
+    );
+    fs.unlinkSync(crashFile);
+  } catch (error) {
+    log.warn("Failed to upload pending crash report", error);
+  }
+}
+
+// ─── Server Utilities ────────────────────────────────────────────────────────
+
 function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
     srv.listen(0, () => {
       const addr = srv.address();
       if (addr && typeof addr === "object") {
-        const port = addr.port;
-        srv.close(() => resolve(port));
+        srv.close(() => resolve(addr.port));
       } else {
         srv.close(() => reject(new Error("Could not get free port")));
       }
@@ -89,7 +149,7 @@ function getFreePort(): Promise<number> {
   });
 }
 
-function waitForServer(port: number, timeout = 10000): Promise<void> {
+function waitForServer(port: number, timeout = 10_000): Promise<void> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const check = () => {
@@ -117,9 +177,27 @@ async function startNitro(): Promise<number> {
     serverPath = serverPath.replace("app.asar", "app.asar.unpacked");
   }
 
+  const serverEnv: Record<string, string> = app.isPackaged
+    ? {
+        NUXT_INTERNAL_SECRET:
+          "e4c3b1532298d0ad005c4e64776a68e77fc4148131a9a71dcfa7e5b95195aca8e560ab7c83b9a626f4884085f906499aa2b2ad205801dbe6d23c6cdc2faa064c",
+        NUXT_KEY_SECRET:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEyMzQ1LCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDAwMzYwMH0.XQK6nF8mY2wT9ZcB5kE3J0DqA7sLrVhM4pW1oUeC2Y",
+        NUXT_DOMAIN_COOKIE: "",
+        NUXT_SUPABASE_URL: "https://oofemvymmppgqvdhkryo.supabase.co",
+        NUXT_GO_API_BASE: "https://api.ppsmb.com.ng/internal/v1",
+        NUXT_WS_URL: "wss://socket.ppsmb.com.ng",
+        NUXT_API_URL: "https://api.ppsmb.com.ng",
+        NUXT_APP_TYPE: "desktop",
+        NUXT_SUPABASE_KEY:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vZmVtdnltbXBwZ3F2ZGhrcnlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODgyNTgyMywiZXhwIjoyMDg0NDAxODIzfQ.7iekKfnWeq5B9T_WwDsxiCHq8KehXWPurDlOq-NfnuE",
+      }
+    : {};
+
   nitroProcess = fork(serverPath, {
     env: {
       ...process.env,
+      ...serverEnv,
       PORT: String(port),
       NITRO_PORT: String(port),
       NITRO_HOST: "localhost",
@@ -128,13 +206,12 @@ async function startNitro(): Promise<number> {
     stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
 
-  nitroProcess.stdout?.on("data", (data) => {
-    log.info(`[Nitro]: ${data.toString()}`);
-  });
-
-  nitroProcess.stderr?.on("data", (data) => {
-    log.error(`[Nitro Error]: ${data.toString()}`);
-  });
+  nitroProcess.stdout?.on("data", (data) =>
+    log.info(`[Nitro]: ${data.toString()}`),
+  );
+  nitroProcess.stderr?.on("data", (data) =>
+    log.error(`[Nitro Error]: ${data.toString()}`),
+  );
 
   await waitForServer(port);
   nitroPort = port;
@@ -142,56 +219,29 @@ async function startNitro(): Promise<number> {
   return port;
 }
 
-async function uploadPendingCrash() {
-  const crashFile = path.join(
-    app.getPath("userData"),
-    "ppsmb-crash",
-    "crash-pending.json",
+// ─── Print Queue ─────────────────────────────────────────────────────────────
+
+function sendProgress(status: StoredPrintJob["status"], jobId: string) {
+  BrowserWindow.getAllWindows().forEach((w) =>
+    w.webContents.send("print-progress", { status, jobId }),
   );
-
-  if (!fs.existsSync(crashFile)) return;
-
-  try {
-    const data = JSON.parse(fs.readFileSync(crashFile, "utf-8"));
-    await axios.post(
-      "https://api.axiolot.com.ng/ppsmb-enugu/crash/report",
-      data,
-    );
-    fs.unlinkSync(crashFile);
-  } catch (error) {
-    log.warn("Failed to upload pending crash report", error);
-  }
 }
 
-function sendCrashReport(error: Error, origin: string) {
-  try {
-    const crashDir = path.join(app.getPath("userData"), "ppsmb-crash");
+async function exportPDF(html: string, fileName: string) {
+  const pdfWin = new BrowserWindow({ show: false });
+  await pdfWin.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
+  );
+  await new Promise((resolve) => setTimeout(resolve, PDF_RENDER_DELAY_MS));
+  const pdf = await pdfWin.webContents.printToPDF({});
 
-    if (!fs.existsSync(crashDir)) {
-      fs.mkdirSync(crashDir, { recursive: true });
-    }
-
-    const crashFile = path.join(crashDir, "crash-pending.json");
-
-    const crash = {
-      origin,
-      message: error.message,
-      stack: error.stack,
-      version: app.getVersion(),
-      platform: process.platform,
-      time: new Date().toISOString(),
-      release: os.release(),
-    };
-
-    fs.writeFileSync(crashFile, JSON.stringify(crash, null, 2));
-  } catch (err) {
-    console.error("Failed to save crash report:", err);
+  const pdfDir = PDF_DIR();
+  if (!fs.existsSync(pdfDir)) {
+    fs.mkdirSync(pdfDir, { recursive: true });
   }
-}
 
-function handleUserIdle() {
-  if (!win || win.isDestroyed()) return;
-  win.webContents.send("idle");
+  fs.writeFileSync(path.join(pdfDir, `${fileName}.pdf`), pdf);
+  pdfWin.close();
 }
 
 async function processQueue() {
@@ -204,6 +254,7 @@ async function processQueue() {
     show: false,
     webPreferences: { sandbox: true },
   });
+
   const cleanup = (status: StoredPrintJob["status"]) => {
     if (activeJob) {
       jobHistory.unshift({
@@ -212,7 +263,7 @@ async function processQueue() {
         finishedAt: Date.now().toLocaleString(),
       });
     }
-    status && sendProgress(status, activeJob!.id);
+    if (status) sendProgress(status, activeJob!.id);
     printerWin.close();
     activeJob = null;
     processQueue();
@@ -234,7 +285,8 @@ async function processQueue() {
             "Printing Error",
             "Failed to print document. Please try again.",
           );
-          return printerWin.close();
+          printerWin.close();
+          return;
         }
         if (activeJob.cancelled) return cleanup("cancelled");
         if (!success) {
@@ -253,29 +305,30 @@ async function processQueue() {
   }
 }
 
-async function exportPDF(html: string, fileName: string) {
-  const pdfWin = new BrowserWindow({ show: false });
-  await pdfWin.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
-  );
-  await new Promise((resolve) => setTimeout(resolve, 10000));
-  const pdf = await pdfWin.webContents.printToPDF({});
+// ─── Window Helpers ──────────────────────────────────────────────────────────
 
-  // Ensure PDF directory exists
-  const pdfDir = path.join(app.getPath("userData"), "pdfs");
-  if (!fs.existsSync(pdfDir)) {
-    fs.mkdirSync(pdfDir, { recursive: true });
+function maximizeAndShow(window: BrowserWindow) {
+  if (process.platform === "win32" || process.platform === "linux") {
+    window.maximize();
   }
-
-  fs.writeFileSync(path.join(pdfDir, `${fileName}.pdf`), pdf);
-  pdfWin.close();
+  window.show();
+  window.focus();
 }
 
-function sendProgress(status: StoredPrintJob["status"], jobId: string) {
-  BrowserWindow.getAllWindows().forEach((w) =>
-    w.webContents.send("print-progress", { status, jobId }),
-  );
+function loadRoute(window: BrowserWindow, url: string) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    window.loadURL(url);
+  } else {
+    window.loadFile(url);
+  }
 }
+
+function handleUserIdle() {
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send("idle");
+}
+
+// ─── Main Window ─────────────────────────────────────────────────────────────
 
 async function createWindow() {
   if (win) {
@@ -287,29 +340,33 @@ async function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 700,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-    icon: path.join(__dirname, "../public/favicon.ico"),
     minWidth: 400,
     minHeight: 300,
     show: false,
     backgroundColor: "#008435",
+    icon: ICON_PATH(),
+    webPreferences: {
+      preload: PRELOAD_PATH(),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   });
 
   win.setMenuBarVisibility(false);
   setupAutoUpdater(win);
   syncService.start();
 
-  win.once("ready-to-show", () => {
-    if (!win) return;
-    if (process.platform === "win32" || process.platform === "linux") {
-      win.maximize();
+  const showTimeout = setTimeout(() => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      log.warn("ready-to-show did not fire within timeout, force-showing window");
+      maximizeAndShow(win);
     }
-    win.show();
-    win.focus();
+  }, WINDOW_SHOW_TIMEOUT_MS);
+
+  win.once("ready-to-show", () => {
+    clearTimeout(showTimeout);
+    if (!win) return;
+    maximizeAndShow(win);
   });
 
   win.webContents.once("did-finish-load", () => {
@@ -318,25 +375,7 @@ async function createWindow() {
     );
   });
 
-  // Fallback: force show window after 30s if ready-to-show never fires
-  const showTimeout = setTimeout(() => {
-    if (win && !win.isDestroyed() && !win.isVisible()) {
-      log.warn("ready-to-show did not fire within 30s, force-showing window");
-      if (process.platform === "win32" || process.platform === "linux") {
-        win.maximize();
-      }
-      win.show();
-      win.focus();
-    }
-  }, 30000);
-
-  win.once("ready-to-show", () => {
-    clearTimeout(showTimeout);
-  });
-
-  const isDev = !app.isPackaged;
-
-  if (isDev) {
+  if (!app.isPackaged) {
     win.loadURL("http://localhost:3000");
   } else {
     try {
@@ -360,11 +399,9 @@ async function createWindow() {
   }
 
   win.on("close", (event) => {
-    if (!isAppQuitting) {
-      if (!win) return;
+    if (!isAppQuitting && win) {
       event.preventDefault();
       win.hide();
-      return;
     }
   });
 
@@ -373,26 +410,34 @@ async function createWindow() {
   });
 
   setupTray();
+  setupContextMenu();
 
-  win.webContents.on("context-menu", (_event, params) => {
+  const scanner = await ensureExternalFileExists(app);
+  if (scanner) {
+    NotificationService.show(scanner.title, scanner.message);
+  }
+}
+
+// ─── Context Menu ────────────────────────────────────────────────────────────
+
+function setupContextMenu() {
+  if (!win) return;
+
+  win.webContents.on("context-menu", (event, params) => {
     if (!win || win.isDestroyed()) return;
+
     const payload: Record<string, boolean | number | string> = {
       exit: true,
       version: true,
       __version: app.getVersion(),
       check: true,
-      release: `https://axiolot.com.ng/ppsmb-enugu-nexus?release=${app.getVersion()}`,
+      release: `https://axiolot.com.ng/apps/ppsmb-enugu-nexus?release=${app.getVersion()}`,
       copyVersion: true,
       restart: true,
     };
 
-    if (win.webContents.navigationHistory.canGoBack()) {
-      payload.back = true;
-    }
-
-    if (win.webContents.navigationHistory.canGoForward()) {
-      payload.forward = true;
-    }
+    if (win.webContents.navigationHistory.canGoBack()) payload.back = true;
+    if (win.webContents.navigationHistory.canGoForward()) payload.forward = true;
 
     if (params.isEditable) {
       payload.cut = true;
@@ -400,9 +445,7 @@ async function createWindow() {
       payload.paste = true;
     }
 
-    if (params.selectionText) {
-      payload.copy = true;
-    }
+    if (params.selectionText) payload.copy = true;
 
     if (params.linkURL) {
       payload.openLink = true;
@@ -413,65 +456,63 @@ async function createWindow() {
     payload.y = params.y;
 
     win.webContents.send("open-context-menu", payload);
-    _event.preventDefault();
+    event.preventDefault();
   });
-
-  const scanner = await ensureExternalFileExists(app);
-
-  if (scanner) {
-    NotificationService.show(scanner.title, scanner.message);
-  }
 }
+
+// ─── System Tray ─────────────────────────────────────────────────────────────
 
 function setupTray() {
   if (tray) return;
-  const iconPath = path.join(__dirname, "../public/favicon.ico");
-  const image = nativeImage.createFromPath(iconPath);
 
+  const image = nativeImage.createFromPath(ICON_PATH());
   if (image.isEmpty()) {
-    console.error("Failed to load tray icon at:", iconPath);
+    log.error("Failed to load tray icon");
   }
 
   tray = new Tray(image);
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Open App",
-      click: () => {
-        win?.show();
-      },
-    },
-    {
-      label: "Scan Document",
-      click: () => {
-        win?.webContents.send("scan-document");
-        win?.show();
-      },
-    },
-    {
-      label: "Quit",
-      click: () => {
-        isAppQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-
   tray.setToolTip("PPSMB Enugu Nexus");
-  tray.setContextMenu(contextMenu);
+
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Open App",
+        click: () => win?.show(),
+      },
+      {
+        label: "Sync Now",
+        click: () => {
+          win?.webContents.send("sync-now");
+          win?.show();
+        },
+      },
+      {
+        label: "Scan Document",
+        click: () => {
+          win?.webContents.send("scan-document");
+          win?.show();
+        },
+      },
+      {
+        label: "Quit",
+        click: () => {
+          isAppQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
 
   tray.on("click", () => {
-    if (win?.isVisible()) {
-      win.hide();
-    } else {
-      win?.show();
-    }
+    win?.isVisible() ? win.hide() : win?.show();
   });
 }
 
+// ─── IPC: Database Operations ────────────────────────────────────────────────
+
 ipcMain.handle(
   "db:insert",
-  async (_event, tableName: string, doc: any, incoming = false) => {
+  async (_, tableName: string, doc: any, incoming = false) => {
     try {
       const result = await dbManager.insert(tableName, doc, incoming);
       syncService.notifyDataChange();
@@ -485,7 +526,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   "db:insertMany",
-  async (_event, tableName: string, docs: any[], incoming = false) => {
+  async (_, tableName: string, docs: any[], incoming = false) => {
     try {
       const result = await dbManager.insertMany(tableName, docs, incoming);
       syncService.notifyDataChange();
@@ -500,7 +541,7 @@ ipcMain.handle(
 ipcMain.handle(
   "db:find",
   async (
-    _event,
+    _,
     tableName: string,
     query: any,
     sort: any,
@@ -516,7 +557,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("db:findOne", async (_event, tableName: string, query: any) => {
+ipcMain.handle("db:findOne", async (_, tableName: string, query: any) => {
   try {
     return await dbManager.findOne(tableName, query);
   } catch (error) {
@@ -525,7 +566,7 @@ ipcMain.handle("db:findOne", async (_event, tableName: string, query: any) => {
   }
 });
 
-ipcMain.handle("db:findMany", async (_event, tableName: string, query: any) => {
+ipcMain.handle("db:findMany", async (_, tableName: string, query: any) => {
   try {
     return await dbManager.findMany(tableName, query);
   } catch (error) {
@@ -536,10 +577,9 @@ ipcMain.handle("db:findMany", async (_event, tableName: string, query: any) => {
 
 ipcMain.handle(
   "db:update",
-  async (_event, tableName: string, query: any, update: any, options: any) => {
+  async (_, tableName: string, query: any, update: any, options: any) => {
     try {
       const result = await dbManager.update(tableName, query, update, options);
-      // Notify sync service of data change
       syncService.notifyDataChange();
       return result;
     } catch (error) {
@@ -551,10 +591,9 @@ ipcMain.handle(
 
 ipcMain.handle(
   "db:delete",
-  async (_event, tableName: string, query: any, options: any) => {
+  async (_, tableName: string, query: any, options: any) => {
     try {
       const result = await dbManager.delete(tableName, query, options);
-      // Notify sync service of data change
       syncService.notifyDataChange();
       return result;
     } catch (error) {
@@ -564,7 +603,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("db:count", async (_event, tableName: string, query: any) => {
+ipcMain.handle("db:count", async (_, tableName: string, query: any) => {
   try {
     return await dbManager.count(tableName, query);
   } catch (error) {
@@ -573,88 +612,17 @@ ipcMain.handle("db:count", async (_event, tableName: string, query: any) => {
   }
 });
 
-ipcMain.handle("db:get-data", (_event, key) => {
-  return storeHelper.get(key);
-});
+ipcMain.handle("db:get-data", (_, key) => storeHelper.get(key));
 
-ipcMain.handle("db:save", (_event, item: any) => {
-  if (item && item.key && item.value !== undefined) {
+ipcMain.handle("db:save", (_, item: any) => {
+  if (item?.key && item.value !== undefined) {
     storeHelper.set(item.key, item.value);
     return;
   }
   log.warn("IPC db:save called with unknown format", item);
 });
 
-ipcMain.handle("app:exitOrRestart", (_event, action: "exit" | "restart") => {
-  if (action === "exit") {
-    win?.hide();
-  } else {
-    app.relaunch();
-    app.exit(0);
-  }
-});
-
-ipcMain.handle("app:navigateHistory", (_event, action: "back" | "forward") => {
-  if (!win) return;
-  if (action === "back") {
-    win.webContents.navigationHistory.goBack();
-  } else {
-    win.webContents.navigationHistory.goForward();
-  }
-});
-
-ipcMain.handle(
-  "app:openModal",
-  (_event, routeUrl: string, options: BrowserWindowConstructorOptions) => {
-    const allWindows = BrowserWindow.getAllWindows();
-
-    const existingModal = allWindows.find((w) => w !== win && !w.isDestroyed());
-
-    if (existingModal) {
-      existingModal.focus();
-
-      if (routeUrl.startsWith("http://") || routeUrl.startsWith("https://")) {
-        existingModal.loadURL(routeUrl);
-      } else {
-        existingModal.loadFile(routeUrl);
-      }
-      return;
-    }
-
-    if (!options.icon) {
-      options.icon = path.join(__dirname, "../public/favicon.ico");
-    }
-
-    const modal = new BrowserWindow({
-      parent: win!,
-      modal: true,
-      width: options.width || 800,
-      height: options.height || 600,
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: {
-        preload: path.join(__dirname, "preload.cjs"),
-        contextIsolation: true,
-      },
-      ...options,
-    });
-
-    modal.setMenuBarVisibility(false);
-
-    if (routeUrl.startsWith("http://") || routeUrl.startsWith("https://")) {
-      modal.loadURL(routeUrl);
-    } else {
-      modal.loadFile(routeUrl);
-    }
-
-    modal.once("ready-to-show", () => {
-      modal.show();
-      modal.focus();
-    });
-  },
-);
-
-ipcMain.handle("db:sync", async (_event) => {
+ipcMain.handle("db:sync", async () => {
   try {
     await syncService.syncNow({ canNotify: true });
     return { success: true };
@@ -663,68 +631,55 @@ ipcMain.handle("db:sync", async (_event) => {
   }
 });
 
-ipcMain.handle("app:openBrowser", (_event, url: string) => {
-  shell.openExternal(url);
-});
+// ─── IPC: Store Operations ───────────────────────────────────────────────────
 
-ipcMain.handle("app:getNitroPort", () => {
-  return nitroPort;
-});
+ipcMain.handle("store:getSetting", (_, key: string) =>
+  storeHelper.getSetting(key as any),
+);
 
-ipcMain.handle("app:notification", (_event, title: string, body: string) => {
-  NotificationService.show(title, body);
-});
-
-ipcMain.handle("auth:verify-pin", async (_event, pin: string, uuid: string) => {
-  const res = await dbManager.findOne<(UserDetails & Auth) | null>("users", {
-    uuid,
-  });
-  if (!res) return null;
-  if (res.pin === pin) {
-    const data = {
-      ...res,
-      pin: undefined,
-    };
-    storeHelper.setUser(data);
-    storeHelper.setSession({
-      token: res.token,
-      expiresAt: SESSION_EXPIRY_SECONDS,
-    });
-    syncService.start();
-    return data;
-  }
-  return null;
-});
-
-ipcMain.handle("store:getSetting", (_event, key: string) => {
-  return storeHelper.getSetting(key as any);
-});
-
-ipcMain.handle("store:setSetting", (_event, key: string, value: any) => {
+ipcMain.handle("store:setSetting", (_, key: string, value: any) => {
   storeHelper.setSetting(key as any, value);
   if (key === "theme") {
-    const theme = value as "light" | "dark" | "system";
-    nativeTheme.themeSource = theme;
+    nativeTheme.themeSource = value as "light" | "dark" | "system";
   }
   return true;
 });
 
-ipcMain.handle("store:get", (_event, key: string) => {
-  return storeHelper.get(key as any);
-});
+ipcMain.handle("store:get", (_, key: string) => storeHelper.get(key as any));
 
-ipcMain.handle("store:set", (_event, key: string, value: any) => {
+ipcMain.handle("store:set", (_, key: string, value: any) => {
   storeHelper.set(key as any, value);
   return true;
 });
 
-ipcMain.handle("store:getUser", (_event) => {
-  return storeHelper.getUser();
+ipcMain.handle("store:getUser", () => storeHelper.getUser());
+
+ipcMain.handle("store:clearUser", () => {
+  storeHelper.clearUser();
+  return true;
+});
+
+// ─── IPC: Auth ───────────────────────────────────────────────────────────────
+
+ipcMain.handle("auth:verify-pin", async (_, pin: string, uuid: string) => {
+  const res = await dbManager.findOne<(UserDetails & Auth) | null>("users", {
+    uuid,
+  });
+  if (!res || res.pin !== pin) return null;
+
+  const data = { ...res, pin: undefined };
+  storeHelper.setUser(data);
+  storeHelper.setSession({
+    token: res.token,
+    expiresAt: SESSION_EXPIRY_SECONDS,
+  });
+  syncService.start();
+  return data;
 });
 
 ipcMain.handle(
   "auth:login",
-  (_event, user: UserDetails & Omit<Auth, "pin">) => {
+  (_, user: UserDetails & Omit<Auth, "pin">) => {
     storeHelper.setUser(user);
     storeHelper.setSession({
       token: user.token,
@@ -735,28 +690,91 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("auth:logout", (_event) => {
+ipcMain.handle("auth:logout", () => {
   storeHelper.clearUser();
   storeHelper.clearSession();
   syncService.stop();
   return true;
 });
 
-ipcMain.handle("store:clearUser", (_event) => {
-  storeHelper.clearUser();
-  return true;
+// ─── IPC: App Actions ────────────────────────────────────────────────────────
+
+ipcMain.handle("app:exitOrRestart", (_, action: "exit" | "restart") => {
+  if (action === "exit") {
+    win?.hide();
+  } else {
+    app.relaunch();
+    app.exit(0);
+  }
 });
 
-ipcMain.handle("theme:getSystemTheme", () => {
-  return nativeTheme.shouldUseDarkColors ? "dark" : "light";
+ipcMain.handle("app:navigateHistory", (_, action: "back" | "forward") => {
+  if (!win) return;
+  action === "back"
+    ? win.webContents.navigationHistory.goBack()
+    : win.webContents.navigationHistory.goForward();
 });
 
-ipcMain.handle("queue-print", (_event, job: PrintJob) => {
+ipcMain.handle(
+  "app:openModal",
+  (_, routeUrl: string, options: BrowserWindowConstructorOptions) => {
+    const existingModal = BrowserWindow.getAllWindows().find(
+      (w) => w !== win && !w.isDestroyed(),
+    );
+
+    if (existingModal) {
+      existingModal.focus();
+      loadRoute(existingModal, routeUrl);
+      return;
+    }
+
+    const modal = new BrowserWindow({
+      parent: win!,
+      modal: true,
+      width: options.width || 800,
+      height: options.height || 600,
+      show: false,
+      autoHideMenuBar: true,
+      icon: options.icon || ICON_PATH(),
+      webPreferences: {
+        preload: PRELOAD_PATH(),
+        contextIsolation: true,
+      },
+      ...options,
+    });
+
+    modal.setMenuBarVisibility(false);
+    loadRoute(modal, routeUrl);
+
+    modal.once("ready-to-show", () => {
+      modal.show();
+      modal.focus();
+    });
+  },
+);
+
+ipcMain.handle("app:openBrowser", (_, url: string) => shell.openExternal(url));
+
+ipcMain.handle("app:getNitroPort", () => nitroPort);
+
+ipcMain.handle("app:notification", (_, title: string, body: string) => {
+  NotificationService.show(title, body);
+});
+
+// ─── IPC: Theme ──────────────────────────────────────────────────────────────
+
+ipcMain.handle("theme:getSystemTheme", () =>
+  nativeTheme.shouldUseDarkColors ? "dark" : "light",
+);
+
+// ─── IPC: Print Queue ────────────────────────────────────────────────────────
+
+ipcMain.handle("queue-print", (_, job: PrintJob) => {
   queue.push(job);
   processQueue();
 });
 
-ipcMain.handle("cancel-print", (_event, jobId: string) => {
+ipcMain.handle("cancel-print", (_, jobId: string) => {
   queue = queue.filter((j) => j.id !== jobId);
   if (activeJob?.id === jobId) {
     activeJob.cancelled = true;
@@ -764,23 +782,16 @@ ipcMain.handle("cancel-print", (_event, jobId: string) => {
   }
 });
 
-ipcMain.handle("reprint-job", (_e, jobId: string) => {
+ipcMain.handle("reprint-job", (_, jobId: string) => {
   const job = jobHistory.find((j) => j.id === jobId);
   if (!job) return;
-
-  queue.unshift({
-    ...job,
-    cancelled: false,
-  });
-
+  queue.unshift({ ...job, cancelled: false });
   processQueue();
 });
 
-ipcMain.handle("get-print-history", () => {
-  return jobHistory;
-});
+ipcMain.handle("get-print-history", () => jobHistory);
 
-ipcMain.handle("reorder-print", (_event, ids: string[]) => {
+ipcMain.handle("reorder-print", (_, ids: string[]) => {
   queue = ids
     .map((id) => queue.find((j) => j.id === id))
     .filter((j): j is PrintJob => Boolean(j));
@@ -796,21 +807,17 @@ ipcMain.handle("get-printers", async () => {
   return activeWindow.webContents.getPrintersAsync();
 });
 
-ipcMain.handle("save-printer", (_event, printer: string) => {
-  fs.writeFileSync(
-    path.join(app.getPath("userData"), "printer.json"),
-    JSON.stringify({ printer }),
-  );
+ipcMain.handle("save-printer", (_, printer: string) => {
+  fs.writeFileSync(PRINTER_CONFIG_PATH(), JSON.stringify({ printer }));
 });
 
 ipcMain.handle("load-printer", () => {
-  if (!fs.existsSync(path.join(app.getPath("userData"), "printer.json"))) {
-    return null;
-  }
-  return JSON.parse(
-    fs.readFileSync(path.join(app.getPath("userData"), "printer.json"), "utf8"),
-  ).printer;
+  const configPath = PRINTER_CONFIG_PATH();
+  if (!fs.existsSync(configPath)) return null;
+  return JSON.parse(fs.readFileSync(configPath, "utf8")).printer;
 });
+
+// ─── Process Error Handlers ──────────────────────────────────────────────────
 
 process.on("uncaughtException", (error) => {
   log.error("Uncaught Exception", error);
@@ -823,26 +830,23 @@ process.on("unhandledRejection", (reason: any) => {
   sendCrashReport(error, "unhandledRejection");
 });
 
+// ─── Native Theme ────────────────────────────────────────────────────────────
+
 nativeTheme.on("updated", () => {
-  const theme = storeHelper.getSetting("theme");
-  if (theme === "system") {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send(
-        "theme:system-changed",
-        nativeTheme.shouldUseDarkColors ? "dark" : "light",
-      );
-    });
-  }
+  if (storeHelper.getSetting("theme") !== "system") return;
+  const resolvedTheme = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  BrowserWindow.getAllWindows().forEach((w) =>
+    w.webContents.send("theme:system-changed", resolvedTheme),
+  );
 });
+
+// ─── App Lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   if (win === null) createWindow();
   uploadPendingCrash().catch((e) => log.error("Failed to upload crash", e));
 
-  // Clear any existing interval to prevent duplicates
-  if (idleCheckInterval) {
-    clearInterval(idleCheckInterval);
-  }
+  if (idleCheckInterval) clearInterval(idleCheckInterval);
 
   idleCheckInterval = setInterval(() => {
     if (!win || win.isDestroyed()) return;
@@ -850,9 +854,7 @@ app.whenReady().then(() => {
     const lockTime = storeHelper.getSetting("lockScreen");
     const idleTime = powerMonitor.getSystemIdleTime();
 
-    if (idleTime >= lockTime) {
-      handleUserIdle();
-    }
+    if (idleTime >= lockTime) handleUserIdle();
   }, IDLE_CHECK_INTERVAL_MS);
 });
 
@@ -860,19 +862,16 @@ app.on("before-quit", () => {
   isAppQuitting = true;
   syncService.stop();
 
-  // Clean up interval
   if (idleCheckInterval) {
     clearInterval(idleCheckInterval);
     idleCheckInterval = null;
   }
 
-  // Clean up tray
   if (tray) {
     tray.destroy();
     tray = null;
   }
 
-  // Clean up Nitro server
   if (nitroProcess) {
     nitroProcess.kill();
     nitroProcess = null;
@@ -880,12 +879,11 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  if (process.platform !== "darwin") app.quit();
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0 && win === null)
+  if (BrowserWindow.getAllWindows().length === 0 && win === null) {
     createWindow();
+  }
 });

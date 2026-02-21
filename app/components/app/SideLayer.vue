@@ -59,7 +59,7 @@ export default defineComponent({
                 </p>
                 <div class="h-px w-24 bg-linear-to-r from-transparent via-white/50 to-transparent my-2"></div>
                 <p class="text-lg font-bold text-center text-white/90 tracking-wider uppercase">
-                    Education Management & Communication System
+                    Information Processing System Management
                 </p>
             </div>
         </div>
