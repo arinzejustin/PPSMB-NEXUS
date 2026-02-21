@@ -146,6 +146,9 @@ async function startNitro() {
             NUXT_DOMAIN_COOKIE: "",
             NUXT_SUPABASE_URL: "https://oofemvymmppgqvdhkryo.supabase.co",
             NUXT_GO_API_BASE: "https://api.ppsmb.com.ng/internal/v1",
+            NUXT_PUBLIC_WS_URL: "wss://socket.ppsmb.com.ng",
+            NUXT_PUBLIC_API_URL: "https://api.ppsmb.com.ng",
+            NUXT_PUBLIC_APP_TYPE: "desktop",
             NUXT_SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vZmVtdnltbXBwZ3F2ZGhrcnlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODgyNTgyMywiZXhwIjoyMDg0NDAxODIzfQ.7iekKfnWeq5B9T_WwDsxiCHq8KehXWPurDlOq-NfnuE",
         }
         : {};

@@ -14,7 +14,7 @@
     "postinstall:nuxt": "nuxt prepare",
     "dev:go": "cd go && air",
     "go:tidy": "cd go && go mod tidy",
-    "build:go": "cd go && go build -o server.exe",
+    "build:go": "cd go && go build -o tmp/build_server.exe",
     "build:electron": "tsc -p electron/tsconfig.electron.json",
     "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",
     "postinstall:electron": "npx electron-rebuild install-app-deps",

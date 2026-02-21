@@ -186,9 +186,9 @@ async function startNitro(): Promise<number> {
         NUXT_DOMAIN_COOKIE: "",
         NUXT_SUPABASE_URL: "https://oofemvymmppgqvdhkryo.supabase.co",
         NUXT_GO_API_BASE: "https://api.ppsmb.com.ng/internal/v1",
-        NUXT_WS_URL: "wss://socket.ppsmb.com.ng",
-        NUXT_API_URL: "https://api.ppsmb.com.ng",
-        NUXT_APP_TYPE: "desktop",
+        NUXT_PUBLIC_WS_URL: "wss://socket.ppsmb.com.ng",
+        NUXT_PUBLIC_API_URL: "https://api.ppsmb.com.ng",
+        NUXT_PUBLIC_APP_TYPE: "desktop",
         NUXT_SUPABASE_KEY:
           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vZmVtdnltbXBwZ3F2ZGhrcnlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODgyNTgyMywiZXhwIjoyMDg0NDAxODIzfQ.7iekKfnWeq5B9T_WwDsxiCHq8KehXWPurDlOq-NfnuE",
       }
@@ -358,7 +358,9 @@ async function createWindow() {
 
   const showTimeout = setTimeout(() => {
     if (win && !win.isDestroyed() && !win.isVisible()) {
-      log.warn("ready-to-show did not fire within timeout, force-showing window");
+      log.warn(
+        "ready-to-show did not fire within timeout, force-showing window",
+      );
       maximizeAndShow(win);
     }
   }, WINDOW_SHOW_TIMEOUT_MS);
@@ -437,7 +439,8 @@ function setupContextMenu() {
     };
 
     if (win.webContents.navigationHistory.canGoBack()) payload.back = true;
-    if (win.webContents.navigationHistory.canGoForward()) payload.forward = true;
+    if (win.webContents.navigationHistory.canGoForward())
+      payload.forward = true;
 
     if (params.isEditable) {
       payload.cut = true;
@@ -677,18 +680,15 @@ ipcMain.handle("auth:verify-pin", async (_, pin: string, uuid: string) => {
   return data;
 });
 
-ipcMain.handle(
-  "auth:login",
-  (_, user: UserDetails & Omit<Auth, "pin">) => {
-    storeHelper.setUser(user);
-    storeHelper.setSession({
-      token: user.token,
-      expiresAt: SESSION_EXPIRY_SECONDS,
-    });
-    syncService.start();
-    return true;
-  },
-);
+ipcMain.handle("auth:login", (_, user: UserDetails & Omit<Auth, "pin">) => {
+  storeHelper.setUser(user);
+  storeHelper.setSession({
+    token: user.token,
+    expiresAt: SESSION_EXPIRY_SECONDS,
+  });
+  syncService.start();
+  return true;
+});
 
 ipcMain.handle("auth:logout", () => {
   storeHelper.clearUser();
