@@ -134,21 +134,6 @@ async function uploadPendingCrash() {
 
 // ─── Server Utilities ────────────────────────────────────────────────────────
 
-function getFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.listen(0, () => {
-      const addr = srv.address();
-      if (addr && typeof addr === "object") {
-        srv.close(() => resolve(addr.port));
-      } else {
-        srv.close(() => reject(new Error("Could not get free port")));
-      }
-    });
-    srv.on("error", reject);
-  });
-}
-
 function waitForServer(port: number, timeout = 10_000): Promise<void> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -170,7 +155,7 @@ function waitForServer(port: number, timeout = 10_000): Promise<void> {
 }
 
 async function startNitro(): Promise<number> {
-  const port = await getFreePort();
+  const port = 3000;
   let serverPath = path.join(__dirname, "../.output/server/index.mjs");
 
   if (app.isPackaged) {

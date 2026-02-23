@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { definePageMeta, navigateTo, useRuntimeConfig, useHead } from '#imports';
-import { useStaffData, type ViewMode } from '@/composables/useStaffData';
+import { useStaffData } from '@/composables/useStaffData';
 import {
     Search, Download, Plus, MoreHorizontal, Eye, ArrowLeftRight,
     Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
@@ -43,7 +43,7 @@ const env = useRuntimeConfig();
 const isDesktop = computed(() => env.public.appType === 'desktop');
 
 useHead({
-    title: isDesktop ? "PPSMB File Manager" : "PPSMB File Manager - Staff View"
+    title: isDesktop ? "PPSMB Enugu Nexus" : "PPSMB Enugu Nexus - Staff View"
 })
 
 const {
@@ -238,10 +238,9 @@ const {
                             </TableCell>
                             <TableCell>
                                 <div class="flex items-center gap-3">
-                                    <Avatar class="w-10 h-10">
+                                    <Avatar class="w-10 h-10 bg-linear-to-br from-emerald-300 to-primary">
                                         <AvatarImage :src="teacher.avatar" />
-                                        <AvatarFallback
-                                            class="bg-linear-to-br from-primary/80 to-primary text-primary-foreground text-sm font-medium">
+                                        <AvatarFallback class="text-primary-foreground text-sm font-medium">
                                             {{ getInitials(teacher.name) }}
                                         </AvatarFallback>
                                     </Avatar>
@@ -334,19 +333,19 @@ const {
         <!-- GRID VIEW -->
         <div v-if="viewMode === 'grid'">
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Card v-for="teacher in paginatedTeachers" :key="teacher.id"
+                <Card v-for="(teacher, index) in paginatedTeachers" :key="teacher.id"
                     class="group cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all duration-300 overflow-hidden"
                     @click="viewTeacher(teacher)">
                     <!-- Card linear top bar -->
                     <div class="h-1.5 bg-linear-to-r from-primary/60 to-primary/20"></div>
                     <CardContent class="pt-5">
                         <div class="flex flex-col items-center text-center gap-3">
-                            <Avatar class="w-16 h-16 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
+                            <Avatar :class="index % 2===0 ? 'bg-linear-to-br' : 'bg-linear-to-tl'" class=" w-16 h-16 ring-2 ring-primary/20 ring-offset-2
+                                ring-offset-background from-emerald-300 to-primary ">
                                 <AvatarImage :src="teacher.avatar" />
-                                <AvatarFallback
-                                    class="bg-linear-to-br from-primary/80 to-primary text-primary-foreground text-lg font-semibold">
-                                    {{ getInitials(teacher.name) }}
-                                </AvatarFallback>
+                            <AvatarFallback class="text-primary-foreground text-lg font-semibold">
+                                {{ getInitials(teacher.name) }}
+                            </AvatarFallback>
                             </Avatar>
                             <div>
                                 <h3 class="font-semibold text-sm leading-tight">{{ teacher.name }}</h3>
@@ -427,10 +426,10 @@ const {
                 <div v-if="selectedTeacher" class="mt-6 space-y-6">
                     <!-- Profile Header -->
                     <div class="flex items-center gap-4">
-                        <Avatar class="w-20 h-20 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
+                        <Avatar class="w-20 h-20 ring-2 ring-primary/20 bg-linear-to-br from-purple-100 to-primary ring-offset-2 ring-offset-background">
                             <AvatarImage :src="selectedTeacher.avatar" />
                             <AvatarFallback
-                                class="bg-linear-to-br from-primary/80 to-primary text-primary-foreground text-xl font-semibold">
+                                class="text-primary-foreground text-xl font-semibold">
                                 {{ getInitials(selectedTeacher.name) }}
                             </AvatarFallback>
                         </Avatar>

@@ -98,21 +98,6 @@ async function uploadPendingCrash() {
     }
 }
 // ─── Server Utilities ────────────────────────────────────────────────────────
-function getFreePort() {
-    return new Promise((resolve, reject) => {
-        const srv = net.createServer();
-        srv.listen(0, () => {
-            const addr = srv.address();
-            if (addr && typeof addr === "object") {
-                srv.close(() => resolve(addr.port));
-            }
-            else {
-                srv.close(() => reject(new Error("Could not get free port")));
-            }
-        });
-        srv.on("error", reject);
-    });
-}
 function waitForServer(port, timeout = 10_000) {
     const start = Date.now();
     return new Promise((resolve, reject) => {
@@ -134,7 +119,7 @@ function waitForServer(port, timeout = 10_000) {
     });
 }
 async function startNitro() {
-    const port = await getFreePort();
+    const port = 3000;
     let serverPath = path.join(__dirname, "../.output/server/index.mjs");
     if (app.isPackaged) {
         serverPath = serverPath.replace("app.asar", "app.asar.unpacked");

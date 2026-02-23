@@ -1068,22 +1068,14 @@ export function useDocumentsData() {
     () => user.value?.department?.toLowerCase() || "",
   );
 
-  const isChairman = computed(
-    () =>
-      userRole.value === "chairman" ||
-      userDepartment.value.includes("chairman") ||
-      userRole.value.includes("chairman") ||
-      userRole.value.includes("manager") ||
-      userRole.value === "manager",
-  );
+  const { hasAccess: isChairman } = useRoleAccess(["chairman", "manager"]);
 
   const hasCentralRegistryAccess = computed(
     () =>
       isChairman.value ||
       userDepartment.value.includes("central") ||
       userDepartment.value.includes("registry") ||
-      userRole.value.includes("registry") ||
-      userRole.value === "admin",
+      userRole.value.includes("registry"),
   );
 
   const hasTeacherProfileAccess = computed(
@@ -1092,8 +1084,7 @@ export function useDocumentsData() {
       userDepartment.value.includes("hr") ||
       userDepartment.value.includes("human") ||
       userDepartment.value.includes("personnel") ||
-      userRole.value.includes("hr") ||
-      userRole.value === "admin",
+      userRole.value.includes("hr"),
   );
 
   // Dimensions configuration

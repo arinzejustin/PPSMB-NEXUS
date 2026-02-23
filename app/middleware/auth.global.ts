@@ -6,7 +6,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   if (user.value?.isAuthenticated) return;
 
-  const publicRoutes = ["/login", "/pin", "/"];
+  const publicRoutes = ["/login", "/pin", "/", "/register"];
   const isPublicRoute = publicRoutes.includes(to.path);
   const redirectTo = encodeURIComponent(to.path);
 

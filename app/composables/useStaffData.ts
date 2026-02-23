@@ -1,4 +1,4 @@
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { db, isElectron } from "@/lib/db";
 import {
   mockTeachers,
@@ -59,6 +59,7 @@ export function useStaffData() {
   const selectedRows = ref<string[]>([]);
   const sortColumn = ref("name");
   const sortDirection = ref<"asc" | "desc">("asc");
+  const user = useUser();
 
   // Profile sheet
   const showProfileSheet = ref(false);
@@ -194,6 +195,13 @@ export function useStaffData() {
       selectedRows.value.push(id);
     }
   };
+
+  const userDepartment = computed(
+    () => user.value?.department?.toLowerCase() || "",
+  );
+  const userRole = computed(() => user.value?.role?.toLowerCase() || "");
+
+  const { hasAccess: allowedStaff } = useRoleAccess(['chairman', 'manager']);
 
   const viewTeacher = (teacher: MockTeacher) => {
     selectedTeacher.value = teacher;
@@ -655,6 +663,7 @@ export function useStaffData() {
     handleFileUpload,
     resetManualForm,
     deleteTeacher,
+    allowedStaff,
     isElectron: isElectron(),
   };
 }

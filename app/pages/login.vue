@@ -26,6 +26,7 @@ const env = useRuntimeConfig();
 const user = useUser();
 const token = useToken();
 const isDesktop = computed(() => env.public.appType === 'desktop');
+const isDesktopApp = computed(() => isDesktop.value || (import.meta.client && !!(window as any).electronAPI));
 
 useHead({
     title: isDesktop.value ? 'PPSMB Staff Manager' : 'Login - PPSMB Staff Manager'
@@ -452,7 +453,11 @@ watch(hasSetPin, (value) => {
                             platform?</span>
                     </div>
                 </div>
-                <p class="text-sm text-center text-muted-foreground">
+                <NuxtLink v-if="!isDesktopApp" to="/register"
+                    class="text-sm text-center text-primary hover:text-primary/80 hover:underline transition-colors font-medium cursor-pointer">
+                    Create an account
+                </NuxtLink>
+                <p v-else class="text-sm text-center text-muted-foreground">
                     Contact your administrator for account access
                 </p>
             </CardFooter>
