@@ -12,7 +12,7 @@ export default defineEventHandler((event) => {
     return;
   }
 
-  const publicApiPaths = ["/api/token", "/api/auth/login"];
+  const publicApiPaths = ["/api/token", "/api/auth/login", "/api/auth/register"];
   if (publicApiPaths.some((p) => path.startsWith(p))) {
     return;
   }
