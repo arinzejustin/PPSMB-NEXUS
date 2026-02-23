@@ -162,22 +162,8 @@ async function startNitro(): Promise<number> {
     serverPath = serverPath.replace("app.asar", "app.asar.unpacked");
   }
 
-  const serverEnv: Record<string, string> = app.isPackaged
-    ? {
-        NUXT_INTERNAL_SECRET:
-          "e4c3b1532298d0ad005c4e64776a68e77fc4148131a9a71dcfa7e5b95195aca8e560ab7c83b9a626f4884085f906499aa2b2ad205801dbe6d23c6cdc2faa064c",
-        NUXT_KEY_SECRET:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEyMzQ1LCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDAwMzYwMH0.XQK6nF8mY2wT9ZcB5kE3J0DqA7sLrVhM4pW1oUeC2Y",
-        NUXT_DOMAIN_COOKIE: "",
-        NUXT_SUPABASE_URL: "https://oofemvymmppgqvdhkryo.supabase.co",
-        NUXT_GO_API_BASE: "https://api.ppsmb.com.ng/internal/v1",
-        NUXT_PUBLIC_WS_URL: "wss://socket.ppsmb.com.ng",
-        NUXT_PUBLIC_API_URL: "https://api.ppsmb.com.ng",
-        NUXT_PUBLIC_APP_TYPE: "desktop",
-        NUXT_SUPABASE_KEY:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vZmVtdnltbXBwZ3F2ZGhrcnlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODgyNTgyMywiZXhwIjoyMDg0NDAxODIzfQ.7iekKfnWeq5B9T_WwDsxiCHq8KehXWPurDlOq-NfnuE",
-      }
-    : {};
+  const serverEnv: Record<string, string> = {};
+
 
   nitroProcess = fork(serverPath, {
     env: {
