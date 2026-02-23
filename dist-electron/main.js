@@ -119,7 +119,7 @@ function waitForServer(port, timeout = 10_000) {
     });
 }
 async function startNitro() {
-    const port = 3000;
+    const port = 4545;
     let serverPath = path.join(__dirname, "../.output/server/index.mjs");
     if (app.isPackaged) {
         serverPath = serverPath.replace("app.asar", "app.asar.unpacked");

@@ -27,7 +27,7 @@ definePageMeta({
 onMounted(() => {
     if (useIsDesktop()) {
         showToast('Registration is not available in the desktop app.', 'info');
-        navigateTo('/login');
+        // navigateTo('/login');
     }
 });
 

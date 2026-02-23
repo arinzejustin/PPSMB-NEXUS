@@ -155,7 +155,7 @@ function waitForServer(port: number, timeout = 10_000): Promise<void> {
 }
 
 async function startNitro(): Promise<number> {
-  const port = 3000;
+  const port = 4545;
   let serverPath = path.join(__dirname, "../.output/server/index.mjs");
 
   if (app.isPackaged) {
