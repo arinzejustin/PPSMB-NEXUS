@@ -41,7 +41,7 @@ export const showToast = (message: string, type: ToastType) => {
 export const sharedToast = ({
   message,
   type = "default",
-  title = "PPSMB File Manager",
+  title = "PPSMB Enugu Nexus",
 }: {
   message: string;
   type?: ToastType;

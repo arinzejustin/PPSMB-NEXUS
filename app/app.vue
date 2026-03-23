@@ -385,7 +385,7 @@ export default defineComponent({
         </div>
       </div>
       <div class="absolute bottom-8 text-2xl font-extrabold uppercase text-white font-app">
-        PPSMB File Manager
+        PPSMB Enugu Nexus
       </div>
     </div>
     <NuxtLayout>

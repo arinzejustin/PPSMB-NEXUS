@@ -98,7 +98,7 @@ const isElectron = ref<boolean>(useIsDesktop());
 const route = useRoute();
 
 useHead({
-  title: isElectron.value ? "PPSMB File Manager" : "Mail & Correspondence"
+  title: isElectron.value ? "PPSMB Enugu Nexus" : "Mail & Correspondence"
 })
 
 // --- Internal Mail Logic ---

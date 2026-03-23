@@ -5,8 +5,8 @@ const isDesktop = useIsDesktop();
 
 useHead({
   title: isDesktop
-    ? "PPSMB Staff Manager"
-    : "Zones Management - PPSMB Staff Manager",
+    ? "PPSMB Enugu Nexus"
+    : "Zones Management - PPSMB Enugu Nexus",
 });
 
 definePageMeta({

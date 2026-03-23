@@ -27,12 +27,12 @@ definePageMeta({
 onMounted(() => {
     if (useIsDesktop()) {
         showToast('Registration is not available in the desktop app.', 'info');
-        // navigateTo('/login');
+        navigateTo('/login');
     }
 });
 
 useHead({
-    title: 'Register - PPSMB Staff Manager'
+    title: 'Register - PPSMB Enugu Nexus'
 });
 
 const user = useUser();
@@ -244,15 +244,7 @@ const handleSubmit = async (): Promise<void> => {
         });
 
         if (data.status) {
-            user.value = {
-                ...data.user,
-                isAuthenticated: true,
-                token: data.token,
-                hasSetPin: data.hasSetPin,
-            };
-
             showToast('Account created successfully!', 'success');
-            await navigateTo('/');
         } else {
             showToast(data.message || 'Registration failed', 'error');
         }

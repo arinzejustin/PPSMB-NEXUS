@@ -121,7 +121,7 @@
       "deleteAppDataOnUninstall": true,
       "perMachine": true,
       "unicode": true,
-      "menuCategory": "PPSMB/Systems"
+      "menuCategory": "PPSMB"
     }
   }
 }

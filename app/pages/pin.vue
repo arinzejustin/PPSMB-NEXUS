@@ -22,7 +22,7 @@ export default defineComponent({
         });
 
         useHead({
-            title: env.public.appType === 'desktop' ? 'PPSMB Staff Manager' : 'Unlock - PPSMB Staff Manager'
+            title: env.public.appType === 'desktop' ? 'PPSMB Enugu Nexus' : 'Unlock - PPSMB Enugu Nexus'
         });
 
         return {

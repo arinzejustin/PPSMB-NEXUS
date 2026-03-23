@@ -96,7 +96,7 @@ definePageMeta({
 const env = useRuntimeConfig(), isDesktop = env.public.appType === 'desktop';
 
 useHead({
-  title: isDesktop ? 'PPSMB File Manager' : 'Broadcasting Hub - PPSMB',
+  title: isDesktop ? 'PPSMB Enugu Nexus' : 'Broadcasting Hub - PPSMB',
 });
 
 const user = useUser();

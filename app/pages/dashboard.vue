@@ -109,7 +109,7 @@ const env = useRuntimeConfig();
 const isDesktop = computed(() => env.public.appType === 'desktop');
 
 useHead({
-  title: isDesktop.value ? 'PPSMB Staff Manager' : 'Dashboard - PPSMB Staff Manager'
+  title: isDesktop.value ? 'PPSMB Enugu Nexus' : 'Dashboard - PPSMB Enugu Nexus'
 });
 
 definePageMeta({

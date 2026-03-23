@@ -12,11 +12,11 @@ export default defineNuxtConfig({
   ssr: !isDesktop,
   app: {
     head: {
-      title: "PPSMB Staff Manager",
+      title: "PPSMB Enugu Nexus",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
-        { name: "description", content: "PPSMB Staff Manager" },
+        { name: "description", content: "PPSMB Enugu Nexus" },
         { name: "format-detection", content: "telephone=no" },
         isDesktop
           ? {

@@ -59,7 +59,7 @@ definePageMeta({
   middleware: "user-validate"
 });
 useHead({
-  title: isDesktop ? 'PPSMB File Manager' : 'Reports - PPSMB File Manager'
+  title: isDesktop ? 'PPSMB Enugu Nexus' : 'Reports - PPSMB Enugu Nexus'
 })
 
 

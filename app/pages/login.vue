@@ -29,7 +29,7 @@ const isDesktop = computed(() => env.public.appType === 'desktop');
 const isDesktopApp = computed(() => isDesktop.value || (import.meta.client && !!(window as any).electronAPI));
 
 useHead({
-    title: isDesktop.value ? 'PPSMB Staff Manager' : 'Login - PPSMB Staff Manager'
+    title: isDesktop.value ? 'PPSMB Enugu Nexus' : 'Login - PPSMB Enugu Nexus'
 });
 
 const form = reactive({
