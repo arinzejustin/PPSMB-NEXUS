@@ -72,7 +72,7 @@
   "build": {
     "appId": "ng.com.axiolot.nexus.ppsmb-enugu",
     "productName": "PPSMB Enugu Nexus",
-    "npmRebuild": false,
+    "npmRebuild": true,
     "directories": {
       "output": "dist"
     },
