@@ -206,6 +206,12 @@ const filteredDocuments = computed(() => {
     return result.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 });
 
+const openScanner = async () => {
+    if(window.electronAPI){
+        await window.electronAPI.scannerScan();
+    }
+}
+
 onMounted(() => {
     isDesktop.value = isElectronEnv;
     const activateScanner = route.query.scan as string;
@@ -254,12 +260,6 @@ const closePreview = () => {
     showPreview.value = false;
     selectedDocument.value = null;
     isFullscreen.value = false;
-};
-
-const openScanner = () => {
-    if (isDesktop.value) {
-        // Scanner logic here - will be handled by Electron
-    }
 };
 
 const getCategoryLabel = (value: string) => {

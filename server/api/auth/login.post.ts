@@ -32,6 +32,7 @@ export default defineEventHandler(
         token: token,
       };
     } catch (error: any) {
+      console.log(error)
       return {
         status: false,
         message: error.message || "Internal Server Error",

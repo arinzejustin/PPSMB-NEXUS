@@ -14,11 +14,6 @@
     "typescript.tsdk": "node_modules\\typescript\\lib",
     "python-envs.pythonProjects": [
         {
-            "path": "python",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        },
-        {
             "path": "package_project",
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"

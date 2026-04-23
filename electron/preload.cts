@@ -65,6 +65,10 @@ const appBridge: IElectronAPI = {
 
   // Document scanner
   onScanDocument: (cb) => on("scan-document", cb),
+  scannerGetDevices: () => ipcRenderer.invoke("scanner:get-devices"),
+  scannerScan: (format?: string) => ipcRenderer.invoke("scanner:scan", format),
+  scannerScanSilent: (format?: string, deviceId?: string) => 
+    ipcRenderer.invoke("scanner:scan-silent", format, deviceId),
 
   // Updater
   startDownload: () => ipcRenderer.send("start-download"),

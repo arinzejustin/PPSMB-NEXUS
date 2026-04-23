@@ -37,6 +37,9 @@ const appBridge = {
     sendNotification: (title, body) => electron_1.ipcRenderer.invoke("app:notification", title, body),
     // Document scanner
     onScanDocument: (cb) => on("scan-document", cb),
+    scannerGetDevices: () => electron_1.ipcRenderer.invoke("scanner:get-devices"),
+    scannerScan: (format) => electron_1.ipcRenderer.invoke("scanner:scan", format),
+    scannerScanSilent: (format, deviceId) => electron_1.ipcRenderer.invoke("scanner:scan-silent", format, deviceId),
     // Updater
     startDownload: () => electron_1.ipcRenderer.send("start-download"),
     confirmInstall: () => electron_1.ipcRenderer.send("quit-and-install"),

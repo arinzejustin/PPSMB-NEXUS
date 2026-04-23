@@ -25,6 +25,7 @@ import { ensureExternalFileExists } from "./utils/downloadScanner.js";
 import { dbManager } from "./database/app.db.js";
 import { syncService } from "./database/sync.db.js";
 import { storeHelper } from "./store/store.js";
+import { scannerClient } from "./utils/scannerClient.js";
 import type { UserDetails, Auth, PrintJob, StoredPrintJob } from "./types.js";
 
 // ─── Constants & Paths ───────────────────────────────────────────────────────
@@ -154,8 +155,64 @@ function waitForServer(port: number, timeout = 10_000): Promise<void> {
   });
 }
 
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, "localhost");
+  });
+}
+
+/**
+ * Scans uncommon high ports (49152-65535, the IANA dynamic/private range)
+ * to find one that is not in use. Starts from a random offset to avoid
+ * always picking the same port on different machines.
+ */
+async function findUncommonPort(): Promise<number> {
+  const MIN_PORT = 49152;
+  const MAX_PORT = 65535;
+  const range = MAX_PORT - MIN_PORT + 1;
+
+  // Start from a pseudo-random offset so different installs pick different ports
+  const startOffset = Math.floor(Math.random() * range);
+
+  for (let i = 0; i < range; i++) {
+    const port = MIN_PORT + ((startOffset + i) % range);
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+
+  throw new Error("No available port found in the dynamic port range (49152-65535)");
+}
+
 async function startNitro(): Promise<number> {
-  const port = 4545;
+  let port: number;
+  const storedPort = storeHelper.get("nitroPort");
+
+  if (storedPort) {
+    // Try the previously saved port first
+    const available = await isPortAvailable(storedPort);
+    if (available) {
+      port = storedPort;
+      log.info(`Reusing stored Nitro port ${port}`);
+    } else {
+      // Stored port is occupied — find a new one
+      log.warn(`Stored port ${storedPort} is in use, searching for a new port...`);
+      port = await findUncommonPort();
+      storeHelper.set("nitroPort", port);
+      log.info(`Switched to new Nitro port ${port}`);
+    }
+  } else {
+    // First-ever launch — find an uncommon available port
+    port = await findUncommonPort();
+    storeHelper.set("nitroPort", port);
+    log.info(`First launch: selected Nitro port ${port}`);
+  }
+
   let serverPath = path.join(__dirname, "../.output/server/index.mjs");
 
   if (app.isPackaged) {
@@ -163,7 +220,6 @@ async function startNitro(): Promise<number> {
   }
 
   const serverEnv: Record<string, string> = {};
-
 
   nitroProcess = fork(serverPath, {
     env: {
@@ -329,9 +385,6 @@ async function createWindow() {
 
   const showTimeout = setTimeout(() => {
     if (win && !win.isDestroyed() && !win.isVisible()) {
-      log.warn(
-        "ready-to-show did not fire within timeout, force-showing window",
-      );
       maximizeAndShow(win);
     }
   }, WINDOW_SHOW_TIMEOUT_MS);
@@ -339,7 +392,7 @@ async function createWindow() {
   win.once("ready-to-show", () => {
     clearTimeout(showTimeout);
     if (!win) return;
-    maximizeAndShow(win);
+    // maximizeAndShow(win);
   });
 
   win.webContents.once("did-finish-load", () => {
@@ -351,23 +404,92 @@ async function createWindow() {
   if (!app.isPackaged) {
     win.loadURL("http://localhost:3000");
   } else {
-    try {
-      const port = await startNitro();
-      await win.loadURL(`http://localhost:${port}`);
-    } catch (err) {
-      log.error("Nitro failed to start", err);
+    const storedPort = storeHelper.get("nitroPort");
+    let needsPortRecovery = false;
+
+    if (storedPort) {
+      const available = await isPortAvailable(storedPort);
+      if (!available) {
+        needsPortRecovery = true;
+        log.warn(`Stored port ${storedPort} is occupied, showing recovery page...`);
+      }
+    }
+
+    if (needsPortRecovery && win && !win.isDestroyed()) {
       await win.loadURL(
         `data:text/html;charset=utf-8,${encodeURIComponent(`
           <html>
-            <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#008435;color:#fff;flex-direction:column">
-              <h1>Failed to Start</h1>
-              <p>The application server could not be started. Please try restarting the app.</p>
-              <p style="font-size:12px;opacity:0.7">${err instanceof Error ? err.message : String(err)}</p>
-              <button style="background:#fff;color:#008435;border:1px solid #008435;padding:10px 20px;cursor:pointer" onclick="window.open('https://axiolot.com.ng/contact?subject=PPSMB Enugu Nexus Error&body=${encodeURIComponent(String(err))}')">Contact The Support Team</button>
+            <head>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  height: 100vh;
+                  background: linear-gradient(135deg, #006b2b 0%, #008435 50%, #00a643 100%);
+                  color: #fff;
+                  flex-direction: column;
+                  gap: 24px;
+                  overflow: hidden;
+                }
+                .spinner {
+                  width: 48px;
+                  height: 48px;
+                  border: 4px solid rgba(255,255,255,0.2);
+                  border-top-color: #fff;
+                  border-radius: 50%;
+                  animation: spin 0.8s linear infinite;
+                }
+                @keyframes spin {
+                  to { transform: rotate(360deg); }
+                }
+                h1 {
+                  font-size: 24px;
+                  font-weight: 600;
+                  letter-spacing: -0.5px;
+                }
+                p {
+                  font-size: 14px;
+                  opacity: 0.85;
+                  max-width: 400px;
+                  text-align: center;
+                  line-height: 1.5;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="spinner"></div>
+              <h1>Updating Server</h1>
+              <p>The previous server port is in use by another application. Finding a new available port&hellip;</p>
             </body>
           </html>
         `)}`,
       );
+    }
+
+    try {
+      const port = await startNitro();
+      if (win && !win.isDestroyed()) {
+        await win.loadURL(`http://localhost:${port}`);
+      }
+    } catch (err) {
+      log.error("Nitro failed to start", err);
+      if (win && !win.isDestroyed()) {
+        await win.loadURL(
+          `data:text/html;charset=utf-8,${encodeURIComponent(`
+            <html>
+              <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#008435;color:#fff;flex-direction:column">
+                <h1>Failed to Start</h1>
+                <p>The application server could not be started. Please try restarting the app.</p>
+                <p style="font-size:12px;opacity:0.7">${err instanceof Error ? err.message : String(err)}</p>
+                <button style="background:#fff;color:#008435;border:1px solid #008435;padding:10px 20px;cursor:pointer" onclick="window.open('https://axiolot.com.ng/contact?subject=PPSMB Enugu Nexus Error&body=${encodeURIComponent(String(err))}')">Contact The Support Team</button>
+              </body>
+            </html>
+          `)}`,
+        );
+      }
     }
   }
 
@@ -788,6 +910,41 @@ ipcMain.handle("load-printer", () => {
   return JSON.parse(fs.readFileSync(configPath, "utf8")).printer;
 });
 
+// ─── IPC: Scanner ────────────────────────────────────────────────────────────
+
+ipcMain.handle("scanner:get-devices", async () => {
+  try {
+    const result = await scannerClient.sendCommand("LIST_DEVICES");
+    return result.data;
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle("scanner:scan", async (_, format = "png") => {
+  try {
+    const result = await scannerClient.sendCommand("SCAN", { format });
+    return result.path;
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle(
+  "scanner:scan-silent",
+  async (_, format = "png", deviceId = "") => {
+    try {
+      const result = await scannerClient.sendCommand("SCAN_SILENT", {
+        format,
+        device_id: deviceId,
+      });
+      return result.path;
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  },
+);
+
 // ─── Process Error Handlers ──────────────────────────────────────────────────
 
 process.on("uncaughtException", (error) => {
@@ -847,6 +1004,11 @@ app.on("before-quit", () => {
     nitroProcess.kill();
     nitroProcess = null;
   }
+
+  scannerClient
+    .sendCommand("CLEANUP", { max_age_hours: "24" })
+    .catch((err) => log.error("Scanner cleanup error", err))
+    .finally(() => scannerClient.kill());
 });
 
 app.on("window-all-closed", () => {

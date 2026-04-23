@@ -1,5 +1,5 @@
 import Datastore from "@seald-io/nedb";
-import { BrowserWindow } from "electron";
+import { safeStorage, BrowserWindow } from "electron";
 import path from "node:path";
 import { app } from "electron";
 import fs from "node:fs";
@@ -35,13 +35,13 @@ class DatabaseManager {
             filename: path.join(this.dbDir, `${tableName}.db`),
             autoload: true,
             timestampData: true,
-            // afterSerialization: (plaintext) => {
-            //   return safeStorage.encryptString(plaintext).toString("base64");
-            // },
-            // beforeDeserialization: (ciphertext) => {
-            //   const buffer = Buffer.from(ciphertext, "base64");
-            //   return safeStorage.decryptString(buffer);
-            // },
+            afterSerialization: (plaintext) => {
+                return safeStorage.encryptString(plaintext).toString("base64");
+            },
+            beforeDeserialization: (ciphertext) => {
+                const buffer = Buffer.from(ciphertext, "base64");
+                return safeStorage.decryptString(buffer);
+            },
         });
         this.stores.set(tableName, store);
         return store;

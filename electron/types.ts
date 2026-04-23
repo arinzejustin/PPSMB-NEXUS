@@ -58,6 +58,9 @@ export interface IElectronAPI {
 
   // Document scanner
   onScanDocument: (cb: () => void) => Unsubscribe;
+  scannerGetDevices: () => Promise<any>;
+  scannerScan: (format?: string) => Promise<string | { error: string }>;
+  scannerScanSilent: (format?: string, deviceId?: string) => Promise<string | { error: string }>;
 
   // Updater
   startDownload: () => void;
@@ -163,6 +166,7 @@ export interface AppStore {
   SUPABASE_URL: string;
   SUPABASE_KEY: string;
   updateDownloaded: boolean;
+  nitroPort?: number;
 }
 
 export type PrintContentType = "html" | "csv" | "excel";

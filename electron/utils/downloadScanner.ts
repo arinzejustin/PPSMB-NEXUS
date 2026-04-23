@@ -82,12 +82,14 @@ export async function ensureExternalFileExists(
 
   fs.mkdirSync(appPath, { recursive: true });
 
+  const fileExists = fs.existsSync(targetFile);
+  const isFirstDownload = !fileExists;
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const latest = await getLatestVersion();
       const currentVersion = getCurrentLocalVersion(targetFile);
 
-      const fileExists = fs.existsSync(targetFile);
       const versionMatches = currentVersion === latest.version;
 
       if (fileExists && versionMatches) {
@@ -108,14 +110,16 @@ export async function ensureExternalFileExists(
       };
     } catch (error) {
       if (attempt === MAX_RETRIES) {
-        return {
-          title: "File Download Error",
-          message:
-            "Failed to download scanner.exe. The application may not function correctly.",
-          status: false,
-        };
+        if (isFirstDownload) {
+          return {
+            title: "Scanner Download Error",
+            message:
+              "Failed to download scanner.exe. The application may not function correctly.",
+            status: false,
+          };
+        }
+        return;
       }
-
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     }
   }
