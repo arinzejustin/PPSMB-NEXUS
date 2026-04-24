@@ -8,7 +8,7 @@
         "strict": true,
         "rootDir": ".",
         "outDir": "../dist-electron",
-        "moduleResolution": "node",
+        "moduleResolution": "Bundler",
         "baseUrl": "..",
         "paths": {
             "@/*": [

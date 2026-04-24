@@ -212,8 +212,8 @@ export default defineComponent({
           e.preventDefault();
           console.warn("Search Teacher not implemented");
         } else if (key === 'i') {
-          // e.preventDefault();
-          // navigateTo("/pin");
+          e.preventDefault();
+          navigateTo("/pin");
         }
       }
     },
@@ -440,7 +440,7 @@ export default defineComponent({
     </div>
 
     <!-- Sync Intervention Overlay -->
-    <div v-if="syncIntervention" class="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-sm flex items-center justify-center">
+    <div v-if="syncIntervention" class="fixed inset-0 z-10001 bg-black/80 backdrop-blur-sm flex items-center justify-center">
       <div class="bg-background rounded-xl p-8 max-w-md w-full border border-border shadow-2xl text-center space-y-6">
         <div class="w-16 h-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mx-auto mb-4">
           <CloudSync class="w-8 h-8" />

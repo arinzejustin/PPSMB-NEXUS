@@ -392,7 +392,7 @@ async function createWindow() {
   win.once("ready-to-show", () => {
     clearTimeout(showTimeout);
     if (!win) return;
-    // maximizeAndShow(win);
+    maximizeAndShow(win);
   });
 
   win.webContents.once("did-finish-load", () => {
