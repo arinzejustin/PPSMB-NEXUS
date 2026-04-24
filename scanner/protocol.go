@@ -7,12 +7,14 @@ import (
 
 // Request is the JSON command sent from Electron via stdin.
 type Request struct {
+	ID      string            `json:"id,omitempty"`
 	Command string            `json:"command"`
 	Params  map[string]string `json:"params,omitempty"`
 }
 
 // Response is the JSON reply sent back to Electron via stdout.
 type Response struct {
+	ID      string `json:"id,omitempty"`       // correlates response to request
 	Status  string `json:"status"`             // "ok" or "error"
 	Message string `json:"message,omitempty"`  // human-readable description
 	Path    string `json:"path,omitempty"`     // file path for scan results
@@ -28,6 +30,14 @@ type DeviceInfo struct {
 func reply(r Response) {
 	data, _ := json.Marshal(r)
 	fmt.Println(string(data))
+}
+
+func replyWithID(id, msg, path string, data any) {
+	reply(Response{ID: id, Status: "ok", Message: msg, Path: path, Data: data})
+}
+
+func replyErrorWithID(id, msg string) {
+	reply(Response{ID: id, Status: "error", Message: msg})
 }
 
 func replyOK(msg, path string, data any) {

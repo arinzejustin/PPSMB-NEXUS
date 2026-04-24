@@ -50,23 +50,23 @@ func main() {
 		// Route the command
 		switch strings.ToUpper(req.Command) {
 		case "PING":
-			handlePing()
+			replyWithID(req.ID, "pong", "", nil)
 		case "LIST_DEVICES":
-			handleListDevices()
+			handleListDevicesWithID(req.ID)
 		case "SCAN":
-			handleScan(req.Params)
+			handleScanWithID(req.ID, req.Params)
 		case "SCAN_SILENT":
-			handleScanSilent(req.Params)
+			handleScanSilentWithID(req.ID, req.Params)
 		case "CLEANUP":
-			handleCleanup(req.Params)
+			handleCleanupWithID(req.ID, req.Params)
 		case "EXIT", "QUIT":
 			if comReady {
 				ole.CoUninitialize()
 			}
-			replyOK("shutting down", "", nil)
+			replyWithID(req.ID, "shutting down", "", nil)
 			os.Exit(0)
 		default:
-			replyError(fmt.Sprintf("unknown command: %s", req.Command))
+			replyErrorWithID(req.ID, fmt.Sprintf("unknown command: %s", req.Command))
 		}
 	}
 }

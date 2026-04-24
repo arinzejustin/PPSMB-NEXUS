@@ -92,6 +92,8 @@ export default defineComponent({
       loading: true,
       tokenRefreshInterval: null as ReturnType<typeof setInterval> | null,
       changeRotationInterval: null as ReturnType<typeof setInterval> | null,
+      syncIntervention: false,
+      syncSizeMb: 0,
     };
   },
 
@@ -339,6 +341,15 @@ export default defineComponent({
         window.electronAPI!.openContextMenu((options) => {
           this.menuOptions = options;
           this.triggerContextMenu(options.x as number, options.y as number);
+        }),
+
+        window.electronAPI!.onSyncStatusUpdate((status) => {
+          if (status.requiresIntervention && !['/login', '/pin'].includes(this.route.path)) {
+            this.syncIntervention = true;
+          } else {
+            this.syncIntervention = false;
+          }
+          this.syncSizeMb = status.unsyncedSizeMb || 0;
         })
       );
 
@@ -425,6 +436,22 @@ export default defineComponent({
           <Button variant="ghost" @click="status = 'idle'"
             class="hover:underline cursor-pointer font-app">Later</Button>
         </div>
+      </div>
+    </div>
+
+    <!-- Sync Intervention Overlay -->
+    <div v-if="syncIntervention" class="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-sm flex items-center justify-center">
+      <div class="bg-background rounded-xl p-8 max-w-md w-full border border-border shadow-2xl text-center space-y-6">
+        <div class="w-16 h-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mx-auto mb-4">
+          <CloudSync class="w-8 h-8" />
+        </div>
+        <h2 class="text-2xl font-bold font-app">Large unsynced data detected</h2>
+        <p class="text-muted-foreground text-sm font-app">
+          You have {{ syncSizeMb.toFixed(2) }} MB of unsynced data. Please synchronize your records to cloud before continuing to avoid data loss.
+        </p>
+        <Button class="w-full h-12 text-lg font-app" @click="syncRecords(); syncIntervention = false">
+          Sync Now
+        </Button>
       </div>
     </div>
 

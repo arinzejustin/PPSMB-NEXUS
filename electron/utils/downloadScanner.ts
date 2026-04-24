@@ -5,8 +5,9 @@ import crypto from "crypto";
 import { pipeline } from "stream/promises";
 import type { FileVersionInfo } from "../types";
 
-const VERSION_URL = "https://api.axiolot.com.ng/ppsmb/scanner/version";
-const SCANNER_NAME = "scanner.exe";
+import { getScannerPath, ensureScannerInUserData, saveScannerChecksum } from "./scannerPath.js";
+
+const VERSION_URL = "https://api.axiolot.com.ng/ppsmb-enugu/scanner/version";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
 
@@ -58,8 +59,10 @@ async function downloadFile(
 
   await pipeline(response.data, fs.createWriteStream(tempFile));
 
+  let actualChecksum: string | undefined;
+
   if (expectedChecksum) {
-    const actualChecksum = await calculateChecksum(tempFile);
+    actualChecksum = await calculateChecksum(tempFile);
     if (actualChecksum !== expectedChecksum) {
       fs.unlinkSync(tempFile);
       throw new Error("Checksum verification failed");
@@ -72,13 +75,20 @@ async function downloadFile(
 
   fs.renameSync(tempFile, targetFile);
   saveVersionInfo(targetFile, version);
+
+  // Persist the checksum for runtime integrity verification
+  const checksumToSave = actualChecksum ?? await calculateChecksum(targetFile);
+  saveScannerChecksum(checksumToSave);
 }
 
 export async function ensureExternalFileExists(
   app: Electron.App,
 ): Promise<{ title: string; message: string; status: boolean } | void> {
-  const appPath = app.getPath("userData");
-  const targetFile = path.join(appPath, SCANNER_NAME);
+  // Copy the bundled/dev scanner into userData if it's not there yet
+  ensureScannerInUserData();
+
+  const targetFile = getScannerPath();
+  const appPath = path.dirname(targetFile);
 
   fs.mkdirSync(appPath, { recursive: true });
 

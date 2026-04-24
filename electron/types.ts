@@ -108,6 +108,8 @@ export interface IElectronAPI {
       isOnline: boolean;
       lastSynced: Date;
       pendingChanges: number;
+      unsyncedSizeMb: number;
+      requiresIntervention: boolean;
     }) => void,
   ) => Unsubscribe;
   onDatabaseChange: (

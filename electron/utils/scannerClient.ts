@@ -1,16 +1,23 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
-import path from "path";
-import { app } from "electron";
-import { NotificationService } from "./notification.js";
-import log from "./logger.js";
 import fs from "fs";
+import { NotificationService } from "./notification.js";
+import { getScannerPath, verifyScannerIntegrity } from "./scannerPath.js";
+import { generateUUID as randomUUID } from "./uuid.js";
+import log from "./logger.js";
+
+interface PendingRequest {
+  id: string;
+  command: string;
+  params?: Record<string, string>;
+  resolve: (data: any) => void;
+  reject: (err: any) => void;
+}
 
 export class ScannerClient {
   private process: ChildProcessWithoutNullStreams | null = null;
-  private pendingRequests: Map<
-    string,
-    { resolve: (data: any) => void; reject: (err: any) => void }
-  > = new Map();
+  private pendingRequests: Map<string, PendingRequest> = new Map();
+  private queue: PendingRequest[] = [];
+  private isProcessing = false;
 
   constructor() {
     // We don't start the scanner immediately on boot anymore because
@@ -19,16 +26,9 @@ export class ScannerClient {
   }
 
   public startScanner() {
-    if (this.process) return; // Already running
+    if (this.process) return;
 
-    // The scanner binary is downloaded to the userData folder by `ensureExternalFileExists`
-    let scannerPath = path.join(app.getPath("userData"), "scanner.exe");
-
-    // Fallback for local development if the binary is in the /scanner directory
-    // and hasn't been downloaded to userData yet.
-    if (!fs.existsSync(scannerPath) && !app.isPackaged) {
-      scannerPath = path.join("C:\\Users\\chicy\\Desktop\\client-projects\\ppsmb-file-manager\\scanner", "scanner.exe");
-    }
+    const scannerPath = getScannerPath();
 
     if (!fs.existsSync(scannerPath)) {
       NotificationService.show(
@@ -36,6 +36,20 @@ export class ScannerClient {
         "Scanner app not found. Please ensure it is installed.",
       );
       return;
+    }
+
+    const integrity = verifyScannerIntegrity();
+    if (!integrity.valid) {
+      log.error(`[Scanner] Integrity check failed: ${integrity.reason}`);
+      NotificationService.show(
+        "Scanner Security Alert",
+        `Scanner integrity check failed: ${integrity.reason}. Please restart the app to re-download.`,
+      );
+      return;
+    }
+
+    if (integrity.version) {
+      log.info(`[Scanner] Starting verified scanner v${integrity.version}`);
     }
 
     this.process = spawn(scannerPath);
@@ -63,20 +77,63 @@ export class ScannerClient {
     this.process.on("close", (code) => {
       log.warn(`[Scanner] Process exited with code ${code}`);
       this.process = null;
+
+      // Reject all pending requests since the process died
+      for (const [, request] of this.pendingRequests) {
+        request.reject(new Error("Scanner process exited unexpectedly."));
+      }
+      this.pendingRequests.clear();
+
+      // Reject all queued requests
+      for (const request of this.queue) {
+        request.reject(new Error("Scanner process exited unexpectedly."));
+      }
+      this.queue = [];
+      this.isProcessing = false;
     });
   }
 
   private handleResponse(response: any) {
-    if (this.pendingRequests.has("current")) {
-      const { resolve, reject } = this.pendingRequests.get("current")!;
-      this.pendingRequests.delete("current");
+    const id = response.id;
+
+    if (id && this.pendingRequests.has(id)) {
+      const request = this.pendingRequests.get(id)!;
+      this.pendingRequests.delete(id);
 
       if (response.status === "error") {
-        reject(new Error(response.message));
+        request.reject(new Error(response.message));
       } else {
-        resolve(response);
+        request.resolve(response);
       }
+
+      this.processNext();
+      return;
     }
+
+    if (!id) {
+      log.info("[Scanner] Received untracked response:", response.message);
+    }
+  }
+
+  private processNext() {
+    if (this.queue.length === 0) {
+      this.isProcessing = false;
+      return;
+    }
+
+    this.isProcessing = true;
+    const request = this.queue.shift()!;
+
+    this.pendingRequests.set(request.id, request);
+
+    const payload =
+      JSON.stringify({
+        id: request.id,
+        command: request.command,
+        params: request.params,
+      }) + "\n";
+
+    this.process!.stdin.write(payload);
   }
 
   public async sendCommand(
@@ -84,7 +141,6 @@ export class ScannerClient {
     params?: Record<string, string>,
   ): Promise<any> {
     if (!this.process) {
-      // Lazy auto-start if someone tries to use it.
       this.startScanner();
 
       if (!this.process) {
@@ -95,18 +151,22 @@ export class ScannerClient {
     }
 
     return new Promise((resolve, reject) => {
-      // If there's already a pending request, reject it to avoid indefinite hang
-      // In a production app, you might queue these up or add IDs to requests.
-      if (this.pendingRequests.has("current")) {
-        this.pendingRequests
-          .get("current")!
-          .reject(new Error("Another scanner operation was started."));
+      const id = randomUUID();
+
+      const request: PendingRequest = {
+        id,
+        command,
+        params,
+        resolve,
+        reject,
+      };
+
+      this.queue.push(request);
+
+      // If nothing is currently being processed, kick off the queue
+      if (!this.isProcessing) {
+        this.processNext();
       }
-
-      this.pendingRequests.set("current", { resolve, reject });
-
-      const payload = JSON.stringify({ command, params }) + "\n";
-      this.process!.stdin.write(payload);
     });
   }
 

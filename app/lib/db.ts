@@ -9,8 +9,8 @@
  */
 
 // Database configuration
-const INDEXED_DB_NAME = "ppsmb_app_db";
-const INDEXED_DB_VERSION = 4; // Incremented to add task reports store
+const INDEXED_DB_NAME = "ppsmb_nexus";
+const INDEXED_DB_VERSION = 1;
 
 // Store names for IndexedDB
 export const STORES = {
@@ -18,7 +18,6 @@ export const STORES = {
   PENDING_CHANGES: "pending_changes",
   CACHE: "cache",
   OFFLINE_DATA: "offline_data",
-  // Broadcast module stores
   BROADCAST_DRAFTS: "broadcast_drafts",
   BROADCAST_HISTORY: "broadcast_history",
   BROADCAST_TEMPLATES: "broadcast_templates",

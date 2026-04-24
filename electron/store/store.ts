@@ -2,85 +2,83 @@ import Store from "electron-store";
 import { safeStorage } from "electron";
 import crypto from "node:crypto";
 import os from "node:os";
-import { execSync } from "node:child_process";
 import dotenv from "dotenv";
 import type { AppStore } from "../types.js";
 
 dotenv.config();
 
+/**
+ * Derives a device-specific encryption key using Electron's safeStorage
+ * (Windows DPAPI / macOS Keychain / Linux libsecret).
+ *
+ * No shell commands — relies entirely on OS-level credential storage.
+ */
 function getDeviceEncryptionKey(): string {
-  let hardwareId = "";
-  try {
-    if (os.platform() === "win32") {
-      hardwareId = execSync(
-        "powershell -Command \"(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID\"",
-      )
-        .toString()
-        .trim();
-    } else if (os.platform() === "darwin") {
-      hardwareId = execSync(
-        "ioreg -rd1 -c IOPlatformExpertDevice | grep -E 'IOPlatformUUID'",
-      )
-        .toString()
-        .split('"')[3]!;
-    } else {
-      hardwareId = execSync(
-        "cat /etc/machine-id || cat /var/lib/dbus/machine-id",
-      )
-        .toString()
-        .trim();
-    }
-  } catch (e) {
-    hardwareId = [os.arch(), os.platform(), os.totalmem()].join("-");
-  }
-
+  // Build a stable device fingerprint from OS info (no exec calls)
   const fingerprint = [
-    hardwareId,
-    os.cpus()[0]?.model,
+    os.hostname(),
+    os.arch(),
+    os.platform(),
+    os.totalmem().toString(),
+    os.cpus()[0]?.model ?? "unknown-cpu",
     os.userInfo().username,
   ].join("|");
 
-  const hash = crypto.createHash("sha256").update(fingerprint).digest("hex");
+  const baseHash = crypto
+    .createHash("sha256")
+    .update(fingerprint)
+    .digest("hex");
 
+  // Use Electron's safeStorage (DPAPI on Windows) to further derive the key.
+  // This ties the encryption to the OS user session.
   if (safeStorage.isEncryptionAvailable()) {
-    const encrypted = safeStorage.encryptString(hash);
+    const encrypted = safeStorage.encryptString(baseHash);
     return crypto.createHash("sha256").update(encrypted).digest("hex");
   }
 
-  return hash;
+  return baseHash;
 }
 
-const store = new Store<AppStore>({
-  name: "config",
-  encryptionKey: getDeviceEncryptionKey(),
-  clearInvalidConfig: true,
-  defaults: {
-    settings: {
-      theme: "system",
-      autoSave: true,
-      notifications: true,
-      lockScreen: 1200,
-      emailNotifications: true,
-      soundEffects: true,
-      autoUpdate: true,
-      language: "en",
-      fontSize: "medium",
-      compactMode: false,
-      showOnlineStatus: true,
-      dataSync: true,
-    },
-    recentFiles: [],
-    SUPABASE_URL: "",
-    SUPABASE_KEY: "",
-    updateDownloaded: false,
-  },
-});
+// ─── Lazy Store Initialization ──────────────────────────────────────────────
+// The store must not be created until `app.whenReady()` resolves, because
+// safeStorage (DPAPI) is not available before the app is ready.
+
+let _store: Store<AppStore> | null = null;
+
+function getStore(): Store<AppStore> {
+  if (!_store) {
+    _store = new Store<AppStore>({
+      name: "config",
+      encryptionKey: getDeviceEncryptionKey(),
+      clearInvalidConfig: true,
+      defaults: {
+        settings: {
+          theme: "system",
+          autoSave: true,
+          notifications: true,
+          lockScreen: 1200,
+          emailNotifications: true,
+          soundEffects: true,
+          autoUpdate: true,
+          language: "en",
+          fontSize: "medium",
+          compactMode: false,
+          showOnlineStatus: true,
+          dataSync: true,
+        },
+        recentFiles: [],
+        SUPABASE_URL: "",
+        SUPABASE_KEY: "",
+        updateDownloaded: false,
+      },
+    });
+  }
+  return _store;
+}
 
 class StoreHelper {
-  private store: any;
-
-  constructor(storeInstance: Store<AppStore>) {
-    this.store = storeInstance;
+  private get store() {
+    return getStore();
   }
 
   /**
@@ -293,5 +291,6 @@ class StoreHelper {
   }
 }
 
-// Export singleton instance
-export const storeHelper = new StoreHelper(store);
+// Export singleton instance — safe to import at module level.
+// The underlying Store is only created on first property access (after app is ready).
+export const storeHelper = new StoreHelper();

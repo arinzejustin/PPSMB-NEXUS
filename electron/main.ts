@@ -958,19 +958,18 @@ process.on("unhandledRejection", (reason: any) => {
   sendCrashReport(error, "unhandledRejection");
 });
 
-// ─── Native Theme ────────────────────────────────────────────────────────────
-
-nativeTheme.on("updated", () => {
-  if (storeHelper.getSetting("theme") !== "system") return;
-  const resolvedTheme = nativeTheme.shouldUseDarkColors ? "dark" : "light";
-  BrowserWindow.getAllWindows().forEach((w) =>
-    w.webContents.send("theme:system-changed", resolvedTheme),
-  );
-});
-
 // ─── App Lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // Native theme change listener (safe to access store here)
+  nativeTheme.on("updated", () => {
+    if (storeHelper.getSetting("theme") !== "system") return;
+    const resolvedTheme = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+    BrowserWindow.getAllWindows().forEach((w) =>
+      w.webContents.send("theme:system-changed", resolvedTheme),
+    );
+  });
+
   if (win === null) createWindow();
   uploadPendingCrash().catch((e) => log.error("Failed to upload crash", e));
 
@@ -989,6 +988,7 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   isAppQuitting = true;
   syncService.stop();
+  dbManager.close();
 
   if (idleCheckInterval) {
     clearInterval(idleCheckInterval);

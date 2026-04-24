@@ -108,6 +108,8 @@ const appBridge: IElectronAPI = {
       isOnline: boolean;
       lastSynced: Date;
       pendingChanges: number;
+      unsyncedSizeMb: number;
+      requiresIntervention: boolean;
     }) => void,
   ) => on("sync-status-update", cb),
 
