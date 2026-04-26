@@ -11,19 +11,25 @@ export default defineEventHandler((event) => {
     return;
   }
 
-  const token = getCookie(event, "x_token") || getHeader(event, "x-auth-token"),
-    ssid = getCookie(event, "ssid");
-  if (!token) {
+  const token = getCookie(event, "x_token") || getHeader(event, "x-auth-token");
+  const ssid = getCookie(event, "ssid");
+
+  if (!token || !ssid) {
     return handleUnauthorized(event, "Invalid actor session.");
   }
 
   try {
     const secret = config.keySecret as string;
-    const decodedToken: any = jwt.verify(token, secret, {
+    const decodedToken = jwt.verify(token, secret, {
       issuer: "AXIOLOT HUB™",
     });
 
-    if (decodedToken.ssid !== ssid) {
+    const tokenSsid =
+      typeof decodedToken === "object" && decodedToken !== null && "ssid" in decodedToken
+        ? decodedToken.ssid
+        : undefined;
+
+    if (typeof tokenSsid !== "string" || tokenSsid !== ssid) {
       return handleUnauthorized(event, "Invalid session token.");
     }
   } catch (error: any) {
