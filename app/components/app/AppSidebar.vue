@@ -190,6 +190,20 @@ const connectionIcon = computed(() => {
   }
 });
 
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+
+  if (
+    sidebar.value &&
+    !sidebar.value.contains(target) &&
+    !target.closest('button') // prevent closing when clicking buttons
+  ) {
+    isCollapsed.value = true;
+    emit('isCollapsed', true);
+  }
+};
+
+
 // Auto-expand menu if child is active
 watch(() => route.path, () => {
   navItems.forEach(item => {
@@ -210,7 +224,7 @@ onMounted(() => {
 
 <template>
   <TooltipProvider :delay-duration="10">
-    <aside :class="[
+    <aside ref="sidebar" :class="[
       'fixed top-0 z-40 h-screen flex flex-col bg-linear-to-b from-background via-background to-background/95 shadow-2xl border-r border-sidebar-border/50 transition-all duration-300 backdrop-blur-sm',
       isCollapsed ? 'w-0 -left-40 md:w-17.5 md:left-0' : 'w-72'
     ]">
