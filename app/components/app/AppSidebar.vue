@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute } from '#imports';
 import {
   LayoutDashboard,
@@ -123,6 +123,8 @@ const bottomNavItems: NavItem[] = [
     to: '/settings/'
   }
 ];
+
+const sidebar = ref<HTMLElement | null>(null);
 
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;
