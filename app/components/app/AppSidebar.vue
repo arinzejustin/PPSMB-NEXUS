@@ -221,7 +221,12 @@ onMounted(() => {
     isCollapsed.value = Boolean(collapsed)
     emit("isCollapsed", isCollapsed.value)
   }
-})
+document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <template>
