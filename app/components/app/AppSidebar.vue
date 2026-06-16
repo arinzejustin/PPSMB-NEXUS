@@ -236,7 +236,7 @@ onUnmounted(() => {
   <TooltipProvider :delay-duration="10">
     <aside ref="sidebar" :class="[
       'fixed top-0 z-40 h-screen flex flex-col bg-linear-to-b from-background via-background to-background/95 shadow-2xl border-r border-sidebar-border/50 transition-all duration-300 backdrop-blur-sm',
-      isCollapsed ? 'w-0 -translate-x-full md:w-17.5 md:translate-x-0' : 'w-72 translate-x-0'
+      isCollapsed ? 'w-0 opacity-0 md:opacity-100 -translate-x-full md:w-17.5 md:translate-x-0' : 'w-72 translate-x-0 opacity-100'
     ]">
       <div class="relative flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/70">
         <div class="absolute inset-0 bg-linear-to-r from-primary/5 via-transparent to-primary/5 pointer-events-none">
