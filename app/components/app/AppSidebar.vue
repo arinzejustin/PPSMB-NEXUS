@@ -14,6 +14,7 @@ import {
   CloudOff,
   Cloud,
   ChevronDown,
+  X,
   Building2,
   MapPin,
   UserCog,
@@ -126,14 +127,21 @@ const bottomNavItems: NavItem[] = [
 
 const sidebar = ref<HTMLElement | null>(null);
 
+const setCollapsed = (collapsed: boolean) => {
+  if (isCollapsed.value === collapsed) return;
+
+  isCollapsed.value = collapsed;
+  setStorage("sidebarCollapsed", isCollapsed.value);
+  emit("isCollapsed", isCollapsed.value);
+};
+
 const toggleCollapse = () => {
-  isCollapsed.value = !isCollapsed.value;
-  setStorage("sidebarCollapsed", isCollapsed.value)
-  emit("isCollapsed", isCollapsed.value)
+  setCollapsed(!isCollapsed.value);
 };
 
 defineExpose({
-  toggleCollapse
+  toggleCollapse,
+  setCollapsed
 })
 
 const toggleSubmenu = (id: string) => {
@@ -172,7 +180,8 @@ const handleLock = () => {
   lockSession();
 };
 
-const avatar = computed(() => user.value?.avatar || "/image/avatar.png")
+// const avatar = computed(() => user.value?.avatar || "/image/avatar.png")
+const avatar = computed(() => "/image/avatar.png")
 
 const handleRefreshSync = async () => {
   isRefreshing.value = true;
@@ -193,15 +202,10 @@ const connectionIcon = computed(() => {
 });
 
 const handleClickOutside = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
+  const target = event.target;
 
-  if (
-    sidebar.value &&
-    !sidebar.value.contains(target) &&
-    !target.closest('button') // prevent closing when clicking buttons
-  ) {
-    isCollapsed.value = true;
-    emit('isCollapsed', true);
+  if (sidebar.value && target instanceof Node && !sidebar.value.contains(target)) {
+    setCollapsed(true);
   }
 };
 
@@ -218,10 +222,9 @@ watch(() => route.path, () => {
 onMounted(() => {
   const collapsed = getStorage<boolean>("sidebarCollapsed")
   if (collapsed !== null) {
-    isCollapsed.value = Boolean(collapsed)
-    emit("isCollapsed", isCollapsed.value)
+    setCollapsed(Boolean(collapsed))
   }
-document.addEventListener('click', handleClickOutside);
+  document.addEventListener('click', handleClickOutside);
 });
 
 onUnmounted(() => {
@@ -233,7 +236,7 @@ onUnmounted(() => {
   <TooltipProvider :delay-duration="10">
     <aside ref="sidebar" :class="[
       'fixed top-0 z-40 h-screen flex flex-col bg-linear-to-b from-background via-background to-background/95 shadow-2xl border-r border-sidebar-border/50 transition-all duration-300 backdrop-blur-sm',
-      isCollapsed ? 'w-0 -left-40 md:w-17.5 md:left-0' : 'w-72'
+      isCollapsed ? 'w-0 -translate-x-full md:w-17.5 md:translate-x-0' : 'w-72 translate-x-0'
     ]">
       <div class="relative flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/70">
         <div class="absolute inset-0 bg-linear-to-r from-primary/5 via-transparent to-primary/5 pointer-events-none">
@@ -251,6 +254,17 @@ onUnmounted(() => {
           <span class="text-sm font-bold text-sidebar-foreground truncate tracking-wide">PPSMB ENUGU</span>
           <span class="text-xs text-sidebar-foreground/60 truncate">Information Processing System Management</span>
         </div>
+
+        <Button
+          v-if="!isCollapsed"
+          variant="ghost"
+          size="icon"
+          class="ml-auto md:hidden shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+          @click="setCollapsed(true)"
+          aria-label="Close sidebar"
+        >
+          <X class="h-4 w-4" />
+        </Button>
       </div>
 
       <!-- Sync Status Indicator - Modern Glass Card -->

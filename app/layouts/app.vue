@@ -11,14 +11,18 @@ const { connect } = useWebSocketConnection();
 const { reprintJob } = usePrinter();
 
 const isCollapsed = ref(true);
-const isMobile = ref<InstanceType<typeof AppSidebar> | null>(null);
+type SidebarExposed = {
+  setCollapsed: (collapsed: boolean) => void;
+};
+
+const sidebarRef = ref<SidebarExposed | null>(null);
 
 const handleCollapsed = (value: boolean) => {
-  isCollapsed.value = value
+  isCollapsed.value = value;
 }
 
 const openMobileSideBar = () => {
-  isMobile.value?.toggleCollapse()
+  sidebarRef.value?.setCollapsed(false);
 }
 
 const handleReprint = async (jobId: string) => {
@@ -39,17 +43,22 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-muted">
-    <AppSidebar @is-collapsed="handleCollapsed" ref="isMobile" />
+    <AppSidebar @is-collapsed="handleCollapsed" ref="sidebarRef" />
     <main class="min-h-screen transition-all duration-300 overflow-x-hidden"
-      :class="isCollapsed ? 'lg:pl-[80px]' : 'lg:pl-[280px]'">
-      <div @click="openMobileSideBar" :class="!isCollapsed ? '-left-30' : 'left-0'"
-        class="fixed md:hidden top-3 h-12 flex justify-center items-center w-16 rounded-r-lg border bg-background/60 backdrop-blur-sm z-99999 transition-all duration-500">
+      :class="isCollapsed ? 'lg:pl-20' : 'lg:pl-70'">
+      <button
+        v-if="isCollapsed"
+        type="button"
+        @click.stop="openMobileSideBar"
+        aria-label="Open sidebar"
+        class="fixed md:hidden top-3 left-0 h-12 flex justify-center items-center w-16 rounded-r-lg border bg-background/60 backdrop-blur-sm z-99999 transition-all duration-500"
+      >
         <svg class="size-6 text-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
           viewBox="0 0 24 24">
           <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M3 5h8m-8 7h13M3 19h18" />
         </svg>
-      </div>
+      </button>
       <div class="p-6">
         <slot />
       </div>
