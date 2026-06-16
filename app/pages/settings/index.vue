@@ -30,6 +30,7 @@ import { useUser, useToken } from '~/composables/useUserStates';
 import { useLogOut } from '~/composables/useLogOut';
 import { useLockWindow } from '@/composables/useLockWindow';
 import { useNavigationHistory } from '@/composables/useNavigationHistory';
+import { useUnSyncedMbSize } from '@/composables/useIsDesktop';
 import { deleteStorage } from '@/lib/storage';
 import {
     User, Shield, Palette, LogOut, Lock, Bell, Save, Monitor, Clock,
@@ -61,7 +62,8 @@ const pinValue = ref<number[]>([]);
 const confirmPinValue = ref<number[]>([]);
 const changeError = ref('');
 const isPinLoading = ref(false);
-const __appVersion = ref('0.0.0')
+const __appVersion = ref('0.0.0');
+const unsyncedSizeMb = useUnSyncedMbSize();
 
 const settings = reactive({
     autoSave: true,
@@ -760,7 +762,7 @@ watch(() => settings.autoUpdate, (val) => updateSetting('autoUpdate', val));
                                 <div class="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                                     <div>
                                         <Label class="font-semibold">Total Storage Used</Label>
-                                        <p class="text-sm text-muted-foreground font-inter mt-1">1.2 GB / 3 GB</p>
+                                        <p class="text-sm text-muted-foreground font-inter mt-1">{{ (unsyncedSizeMb / 1000) }} GB / 1 GB</p>
                                         <span class="font-app text-xs mt-1 text-muted-foreground">Till next forced
                                             sync</span>
                                     </div>

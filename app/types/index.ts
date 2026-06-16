@@ -27,8 +27,13 @@ export interface NavItem {
 
 export interface SyncStatus {
   isOnline: boolean;
+  isIdle?: boolean;
+  isPushing?: boolean;
+  isPulling?: boolean;
   lastSynced: Date;
   pendingChanges: number;
+  unsyncedSizeMb?: number;
+  requiresIntervention?: boolean;
   isChecking: boolean;
   connectionStrength: "excellent" | "good" | "poor" | "offline";
 }

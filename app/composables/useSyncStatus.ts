@@ -10,6 +10,8 @@ class SyncStatusManager {
     isOnline: typeof navigator !== "undefined" ? navigator.onLine : false,
     lastSynced: new Date(),
     pendingChanges: 0,
+    unsyncedSizeMb: 0,
+    requiresIntervention: false,
     isChecking: false,
     connectionStrength: "offline",
   });
@@ -38,6 +40,7 @@ class SyncStatusManager {
   }
 
   private setupElectronListeners() {
+    this.setupActivityTracking();
     if (window.electronAPI.onSyncStatusUpdate) {
       this.unsubscribeElectron = window.electronAPI.onSyncStatusUpdate(
         (status) => {
@@ -46,6 +49,11 @@ class SyncStatusManager {
             isOnline: status.isOnline,
             lastSynced: new Date(status.lastSynced),
             pendingChanges: status.pendingChanges,
+            isIdle: status.isIdle,
+            isPushing: status.isPushing,
+            isPulling: status.isPulling,
+            unsyncedSizeMb: status.unsyncedSizeMb,
+            requiresIntervention: status.requiresIntervention,
             connectionStrength: status.isOnline ? "excellent" : "offline",
           };
           this.notifyListeners();
@@ -58,6 +66,8 @@ class SyncStatusManager {
   private async setupWebListeners() {
     this.status.value.lastSynced = new Date();
 
+    this.setupActivityTracking();
+
     window.addEventListener("online", this.handleOnlineChange);
     window.addEventListener("offline", this.handleOnlineChange);
 
@@ -69,6 +79,28 @@ class SyncStatusManager {
   private handleOnlineChange = async () => {
     await this.checkServerConnection();
   };
+
+  private activityTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private setupActivityTracking() {
+    const reportActivity = () => {
+      if (this.activityTimeout) return;
+      
+      if (isElectron() && window.electronAPI.reportActivity) {
+        window.electronAPI.reportActivity();
+      }
+
+      // Throttle activity reporting to once every 5 seconds
+      this.activityTimeout = setTimeout(() => {
+        this.activityTimeout = null;
+      }, 5000);
+    };
+
+    window.addEventListener('mousemove', reportActivity, { passive: true });
+    window.addEventListener('keydown', reportActivity, { passive: true });
+    window.addEventListener('focus', reportActivity, { passive: true });
+    window.addEventListener('click', reportActivity, { passive: true });
+  }
 
   /**
    * Update pending changes count from the database

@@ -19,6 +19,7 @@ const appBridge = {
     syncRecords: () => electron_1.ipcRenderer.invoke("db:sync"),
     //idle
     onIdle: (cb) => on("idle", cb),
+    reportActivity: () => electron_1.ipcRenderer.send("user-activity"),
     // from store
     getSetting: (key) => electron_1.ipcRenderer.invoke("store:getSetting", key),
     setSetting: (key, value) => electron_1.ipcRenderer.invoke("store:setSetting", key, value),

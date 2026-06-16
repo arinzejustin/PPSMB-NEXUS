@@ -67,6 +67,7 @@ export interface IElectronAPI {
   confirmInstall: () => void;
   checkUpdate: () => void;
   onIdle: (cb: () => void) => Unsubscribe;
+  reportActivity: () => void;
 
   onUpdateAvailable: (cb: (version: string) => void) => Unsubscribe;
   onUpdateProgress: (cb: (percent: number) => void) => Unsubscribe;
@@ -106,6 +107,9 @@ export interface IElectronAPI {
   onSyncStatusUpdate: (
     cb: (status: {
       isOnline: boolean;
+      isIdle: boolean;
+      isPushing: boolean;
+      isPulling: boolean;
       lastSynced: Date;
       pendingChanges: number;
       unsyncedSizeMb: number;

@@ -194,20 +194,17 @@ async function startNitro(): Promise<number> {
   const storedPort = storeHelper.get("nitroPort");
 
   if (storedPort) {
-    // Try the previously saved port first
     const available = await isPortAvailable(storedPort);
     if (available) {
       port = storedPort;
       log.info(`Reusing stored Nitro port ${port}`);
     } else {
-      // Stored port is occupied — find a new one
       log.warn(`Stored port ${storedPort} is in use, searching for a new port...`);
       port = await findUncommonPort();
       storeHelper.set("nitroPort", port);
       log.info(`Switched to new Nitro port ${port}`);
     }
   } else {
-    // First-ever launch — find an uncommon available port
     port = await findUncommonPort();
     storeHelper.set("nitroPort", port);
     log.info(`First launch: selected Nitro port ${port}`);
@@ -792,6 +789,10 @@ ipcMain.handle("auth:logout", () => {
 
 // ─── IPC: App Actions ────────────────────────────────────────────────────────
 
+ipcMain.on("user-activity", () => {
+  syncService.reportUserActivity();
+});
+
 ipcMain.handle("app:exitOrRestart", (_, action: "exit" | "restart") => {
   if (action === "exit") {
     win?.hide();
@@ -848,7 +849,7 @@ ipcMain.handle(
 
 ipcMain.handle("app:openBrowser", (_, url: string) => shell.openExternal(url));
 
-ipcMain.handle("app:getNitroPort", () => nitroPort);
+ipcMain.handle("app:getNitroPort", () => app.isPackaged ? nitroPort : 3000);
 
 ipcMain.handle("app:notification", (_, title: string, body: string) => {
   NotificationService.show(title, body);

@@ -38,6 +38,7 @@ const appBridge: IElectronAPI = {
 
   //idle
   onIdle: (cb) => on("idle", cb),
+  reportActivity: () => ipcRenderer.send("user-activity"),
 
   // from store
   getSetting: (key: string) => ipcRenderer.invoke("store:getSetting", key),
@@ -106,6 +107,9 @@ const appBridge: IElectronAPI = {
   onSyncStatusUpdate: (
     cb: (status: {
       isOnline: boolean;
+      isIdle: boolean;
+      isPushing: boolean;
+      isPulling: boolean;
       lastSynced: Date;
       pendingChanges: number;
       unsyncedSizeMb: number;
